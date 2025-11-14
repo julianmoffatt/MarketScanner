@@ -1,41 +1,5 @@
 #pressure/absortion code, weekly and monthly charts
-from concurrent.futures import ProcessPoolExecutor
-import random
-import ccxt
-import pandas as pd
-from datetime import datetime, timedelta, timezone
-import ccxt
-#import numpy as np
-
-kucoin = ccxt.kucoinfutures() #Connect to KuCoin Futures
-
-def createCurrentCandle(df_HigherTimeframe_base, df_LowerTimeframe):
-    #print(df_HigherTimeframe_base)
-    #print("----------------------")
-    #print(df_LowerTimeframe)
-    if df_LowerTimeframe.empty:
-        return df_HigherTimeframe_base
-    else:    
-        new_candle = df_LowerTimeframe.resample('W-SUN').agg({'open': 'first','high': 'max','low': 'min','close': 'last','volume': 'sum'})
-        df = pd.concat([df_HigherTimeframe_base, new_candle])
-        df['rsi'] = rsi_tradingview(df['close'])
-        return df
-
-def build_df_HigherTimeframe(HT, df_LowerTimeframe):
-    df_HigherTimeframe = df_LowerTimeframe
-    if (HT == '4h'):
-        df_HigherTimeframe = df_LowerTimeframe.resample('4H').agg({'open': 'first','high': 'max','low': 'min','close': 'last','volume': 'sum'})
-    elif (HT == '1d'):
-        df_HigherTimeframe = df_LowerTimeframe.resample('1D',label='left', closed='left').agg({'open': 'first','high': 'max','low': 'min','close': 'last','volume': 'sum'})
-    elif (HT == '1w'):
-        df_HigherTimeframe = df_LowerTimeframe.resample('W-SUN').agg({'open': 'first','high': 'max','low': 'min','close': 'last','volume': 'sum'})
-        df_HigherTimeframe.index = df_HigherTimeframe.index - pd.Timedelta(days=6)
-    elif (HT == '1m'):
-        df_HigherTimeframe = df_LowerTimeframe.resample('M').agg({'open': 'first','high': 'max','low': 'min','close': 'last','volume': 'sum'})
-        df_HigherTimeframe.index = df_HigherTimeframe.index - pd.offsets.MonthBegin(1)
-    df_HigherTimeframe['rsi'] = rsi_tradingview(df_HigherTimeframe['close'])
-    return df_HigherTimeframe
-
+from functions import *
 
 def tradeSystem(LT, HT, df_LowerTimeframe, parameter_BullWick, parameter_BearWick, rsiLong_LT, rsiLong_HT, rsiShort_LT, rsiShort_HT, LongK_LT, LongK_HT, ShortK_LT, ShortK_HT):
     df_HigherTimeframe_base = build_df_HigherTimeframe(HT, df_LowerTimeframe)
@@ -46,16 +10,13 @@ def tradeSystem(LT, HT, df_LowerTimeframe, parameter_BullWick, parameter_BearWic
     df_LowerTimeframe = df_LowerTimeframe[df_HigherTimeframe_base.index[0]:]
 
     for i in range(105, len(df_LowerTimeframe)): #diccionarios funcion para importar offset
-        if df_HigherTimeframe_base.index[x] + pd.Timedelta(days=13) == df_LowerTimeframe.index[i]:
+        if df_HigherTimeframe_base.index[x] + pd.Timedelta(days=13) == df_LowerTimeframe.index[i] and x < len(df_HigherTimeframe_base)-2:
             x = x+1
         #print("NOW:",df_LowerTimeframe.index[i])
         #print(df_HigherTimeframe_base.index[x])
         #print(df_LowerTimeframe.index[i])
-        df_HigherTimeframe = createCurrentCandle(df_HigherTimeframe_base.iloc[x-14:x+1], df_LowerTimeframe.iloc[7*(x+1):i+1])        
-
-        print("i:", i)
-        print("Lower len:", len(df_LowerTimeframe))
-        print("Higher len:", len(df_HigherTimeframe))
+        #df_HigherTimeframe = createCurrentCandle(df_HigherTimeframe_base.iloc[x-14:x+1], df_LowerTimeframe.iloc[7*(x+1):i+1])
+        df_HigherTimeframe_RSI = df_HigherTimeframe_base.iloc[x]["rsi"]
 
         if trade:
             if tradeLong: 
@@ -79,14 +40,14 @@ def tradeSystem(LT, HT, df_LowerTimeframe, parameter_BullWick, parameter_BearWic
                     creditos = ((entry/SL) * creditos) 
                     trade, tradeShort = False, False
         else :
-            if (df_LowerTimeframe.iloc[i]["lower_wick"] / df_LowerTimeframe.iloc[i]["candle_range"]) >= parameter_BullWick and df_LowerTimeframe.iloc[i]["rsi"] <= rsiLong_LT and df_HigherTimeframe.iloc[-1]["rsi"] <= rsiLong_HT: #hit the proper weekly rsi
+            if (df_LowerTimeframe.iloc[i]["lower_wick"] / df_LowerTimeframe.iloc[i]["candle_range"]) >= parameter_BullWick and df_LowerTimeframe.iloc[i]["rsi"] <= rsiLong_LT and df_HigherTimeframe_RSI <= rsiLong_HT: #hit the proper weekly rsi
                 trade = True
                 tradeLong = True
                 entry = df_LowerTimeframe.iloc[i]["close"]
                 SL = df_LowerTimeframe.iloc[i]["low"]
                 TP = df_LowerTimeframe.iloc[i]["close"] + ((df_LowerTimeframe.iloc[i]["high"]-df_LowerTimeframe.iloc[i]["low"]) * round((((LongK_LT*rsiLong_LT)+(LongK_HT*rsiLong_HT))/2), 2))
                 cont = cont + 1
-            elif (df_LowerTimeframe.iloc[i]["upper_wick"] / df_LowerTimeframe.iloc[i]["candle_range"]) >= parameter_BearWick and df_LowerTimeframe.iloc[i]["rsi"] >= rsiShort_LT and df_HigherTimeframe.iloc[-1]["rsi"] >= rsiShort_HT:
+            elif (df_LowerTimeframe.iloc[i]["upper_wick"] / df_LowerTimeframe.iloc[i]["candle_range"]) >= parameter_BearWick and df_LowerTimeframe.iloc[i]["rsi"] >= rsiShort_LT and df_HigherTimeframe_RSI >= rsiShort_HT:
                 trade = True
                 tradeShort = True
                 entry = df_LowerTimeframe.iloc[i]["close"]
@@ -102,54 +63,16 @@ def tradeSystem(LT, HT, df_LowerTimeframe, parameter_BullWick, parameter_BearWic
 
     return creditos, cont
 
-def rsi_tradingview(prices, period=14):
-    delta = prices.diff()
-    gain = delta.clip(lower=0)
-    loss = -delta.clip(upper=0)
-    avg_gain = gain.ewm(alpha=1/period, adjust=False).mean()
-    avg_loss = loss.ewm(alpha=1/period, adjust=False).mean()
-    rs = avg_gain / avg_loss
-    rsi = 100 - (100 / (1 + rs))
-    return rsi
-
-def getTradingDataFrame(symbol, date, timeframe, candles):
-    since = int(date.timestamp() * 1000)
-    dataframes = []
-    now = datetime.now(timezone.utc)
-    today = now.date()  # YYYY-MM-DD
-    #current_hour = now.hour   # 0–23
-    lastDay = date.date()
-    while lastDay < today:
-        ticker = kucoin.fetch_ohlcv(symbol, timeframe=timeframe, limit=candles, since = since)
-        df = pd.DataFrame(ticker, columns=['timestamp', 'open', 'high', 'low', 'close', 'volume'])  
-        if not df.empty:
-            df['timestamp'] = pd.to_datetime(df['timestamp'], unit='ms', utc=True)
-            df = df.set_index('timestamp')
-            df["candle_range"] = df["high"] - df["low"]
-            df["upper_wick"] = df["high"] - df[["open", "close"]].max(axis=1)
-            df["lower_wick"] = abs(df["low"] - df[["open", "close"]].min(axis=1))
-            df['rsi'] = rsi_tradingview(df['close'])
-            dataframes.append(df)
-        date += timedelta(days=candles)
-        since = int(date.timestamp() * 1000)
-        lastDay = df.index[-1].date()
-    if dataframes:
-        df_daily = pd.concat(dataframes, ignore_index=False)
-        return df_daily
-    else:
-        return pd.DataFrame()
-
-
 def simulation(symbol):
     LT = '1d'
     HT = '1w'
     df = getTradingDataFrame(symbol, datetime(2021, 4, 1), LT, 100)
+    print("hi", symbol)
     if not df.empty:
         cont, numTrades, max, creditos = 0, 0, 0, 1000        
         new_row = {}
-        while cont < 1:
-            if cont == 30000 or cont == 100000 or cont == 150000:
-                print(cont)
+        while cont < 10000:
+            print(cont, symbol)
             parameter_BullWick = round(random.uniform(0.25, 0.95), 2) 
             parameter_BearWick = round(random.uniform(0.25, 0.95), 2) 
             rsiLong_LT = round(random.uniform(15, 80), 0)
@@ -166,84 +89,176 @@ def simulation(symbol):
                 numTrades = trades
                 new_row = {'Symbol': symbol, 'Start': df.index.min(), 'End': df.index.max(), 'Start_Price': df["close"].iloc[0], 'End_Price': df["close"].iloc[-1], 'SpotPnl': round((df["close"].iloc[-1]/df["close"].iloc[0]) * 1000,1), 'SimulationPnl': round(max,1), 'NumTrades': numTrades} #, 'BullWick': parameter_BullWick,  'BearWick': parameter_BearWick, 'BullRsi': rsiLongTrigger, 'BearRsi': rsiShortTrigger, "Long_Coefficient": LK, "Short_Coefficient": SK}
             cont = cont + 1
-
+        print("bye", symbol)
         return new_row
     else:
+        print("bye", symbol)
         return False
-
-
+    
 def symbols_simulation():
     markets = kucoin.load_markets() #Load all available markets (contracts)
     symbols = [symbol for symbol in markets if 'USDT' in symbol and markets[symbol]['linear']] # Filter for USDT-margined futures only - # List of symbols to use
-    symbols = symbols[:10]
+    symbols = symbols[:3]
 
     with ProcessPoolExecutor(max_workers=10) as executor:
         rows = list(executor.map(simulation, symbols))
     
     data_rows = [x for x in rows if x is not False]
     df = pd.DataFrame(data_rows)   
-    df.to_csv("simulation_NEW_CODE.csv", index=False, encoding="utf-8", sep=";", decimal=',') 
+    df.to_csv("simulation_absortions.csv", index=False, encoding="utf-8", sep=";", decimal=',') 
+    
 
-def test_simulation():
-    df = pd.read_csv("simulation_parameters_SL_TP.csv", sep=";", decimal=',')
-    df["Start"] = pd.to_datetime(df['Start'])
-    df["End"] = pd.to_datetime(df['End'])
-    df = df[(df["End"] - df["Start"]).dt.days >= 60] #filtro simbolos con al menos dos meses de historico - analisis diario y semanal (4h puede ser menos, pero no recomendado)
-    rows = []
-    for x in range(0, len(df)):
-        parts = []
-        set = 1
-        symbol = df.iloc[x]["Symbol"]
-        print(symbol)
-        df_symbol = getTradingDataFrame(symbol, datetime(2021, 4, 1), "1d", 100)
-        if not df_symbol.empty:
-            num = 0
-            vsSpotAVG = 0
-            vsSpotMin = float('inf')
-            vsSpotMax = 0
-            vsCashAVG = 0
-            vsCashMin = float('inf')
-            vsCashMax = 0
-            parts.append({"Symbol":symbol})
-            begin = df_symbol.iloc[0]["timestamp"]
-            print(df_symbol.iloc[0]["timestamp"])
-            print(begin)
-            while begin < df_symbol.iloc[-1]["timestamp"]:
-                df_aux = df_symbol[(df_symbol["timestamp"] >= begin) & (df_symbol["timestamp"] <= (begin+ pd.Timedelta(days=60)))]
-                df_aux = df_aux.reset_index(drop=True)
-                creditos, num_trades = tradeSystem(df_aux, df.iloc[x]["BullWick"], df.iloc[x]["BearWick"], df.iloc[x]["BullRsi"], df.iloc[x]["BearRsi"], df.iloc[x]["Long_Coefficient"], df.iloc[x]["Short_Coefficient"])
-                end = begin + pd.Timedelta(days=60)
-                df_window = df_aux[(df_aux["timestamp"] >= begin) & (df_aux["timestamp"] <= end)]
-                spotResult = 1000 * (df_window.iloc[-1]["close"]/df_window.iloc[0]["close"])
-                aux = {"SpotSet"+str(set): spotResult, "SimulationSet"+str(set): creditos, "TradesSet"+str(set): num_trades, "vsSpot"+str(set): round(creditos/spotResult, 1), "vsCash"+str(set): round(creditos/1000, 1)}
-                num = num + 1
-                vsSpotAVG = vsSpotAVG + round(creditos/spotResult, 1)
-                vsCashAVG = vsCashAVG + round(creditos/1000, 1)
-                if round(creditos/spotResult, 1) > vsSpotMax:
-                    vsSpotMax = round(creditos/spotResult, 1)
-                if round(creditos/spotResult, 1) < vsSpotMin:
-                    vsSpotMin = round(creditos/spotResult, 1)
-                if round(creditos/1000, 1) > vsSpotMax:
-                    vsCashMax = round(creditos/1000, 1)
-                if round(creditos/1000, 1) < vsSpotMin:
-                    vsCashMin = round(creditos/1000, 1)
-                parts.append(aux)
-                begin = begin + pd.Timedelta(days=61)
-                set = set + 1
-            vsSpotAVG = round(vsSpotAVG/num, 1)
-            vsCashAVG = round(vsCashAVG/num, 1)
-            parts.append({"vsSpotAVG": vsSpotAVG, "vsCashAVG": vsCashAVG, "vsSpotMax": vsSpotMax, "vsSpotMin": vsSpotMin, "vsCashMax": vsCashMax, "vsCashMin": vsCashMin})
-            row = {}
-            for d in parts:
-                row.update(d)
-            rows.append(row)
-            parts = []
+def volumeSystem(df, volatility_X, invalidation_X, rangeVolatility):
+    creditos = 1000
+    trade = False
+    entry = 0
+    numTrades = 0
+    cross = False
+    df['candle_size'] = ((df['close']/df['open'])-1).abs()
+    df['avg_candle_size'] = df['candle_size'].rolling(window=rangeVolatility, min_periods=1).mean()
+    df['volume_mean'] = df['volume'].rolling(window=rangeVolatility, min_periods=1).mean()
+    df["ema12"] = df["close"].ewm(span=12, adjust=False).mean()
+    df["ema21"] = df["close"].ewm(span=21, adjust=False).mean()
 
-    df = pd.DataFrame(rows)   
-    df.to_csv("test_results_SL_TP.csv", index=False, encoding="utf-8", sep=";", decimal=',') 
+    for i in range(rangeVolatility, len(df)):
+        if df.iloc[i]["ema12"] > df.iloc[i]["ema21"]:
+            cross = True
 
-def trading_triggers():
-    df = pd.read_csv("test_results.csv", sep=";", decimal=',')
+        if not trade and df.iloc[i]["volume"] >= (volatility_X * df.iloc[i]["volume_mean"]) and df.iloc[i]["close"] > df.iloc[i]["open"] and df.iloc[i]["candle_size"] >=  df.iloc[i]["avg_candle_size"]:
+            trade = True
+            entry = df.iloc[i]["close"]
+            sl = df.iloc[i]["close"] - round((invalidation_X * (df.iloc[i]["high"] - df.iloc[i]["low"])),1)
+
+        if cross and trade and df.iloc[i]["close"] < df.iloc[i]["ema21"]:
+            creditos = creditos * (df.iloc[i]["close"]/entry) #(creditos * (df.iloc[i]["close"]/entry)) - (0.003 * creditos) - (0.003 * (creditos * (df.iloc[i]["close"]/entry)))
+            trade = False
+            cross = False
+            numTrades = numTrades + 1
+
+        if trade and df.iloc[i]["close"] <= sl:
+            creditos = creditos * (sl/entry) #(creditos * (df.iloc[i]["close"]/entry)) - (0.003 * creditos) - (0.003 * (creditos * (df.iloc[i]["close"]/entry)))
+            trade = False
+            cross = False
+            numTrades = numTrades + 1
+
+    if trade:
+            creditos = creditos * (df.iloc[i]["close"]/entry)
+            numTrades = numTrades + 1
+
+    return creditos, numTrades 
+
+   
+def simulation2(symbol):
+    timeframe = '5m'
+    df = getTradingDataFrame2(symbol, datetime(2025, 10, 1), timeframe, 100)
+    print("start", symbol)
+    if not df.empty:
+        cont, numTrades, max, creditos = 0, 0, 0, 1000        
+        new_row = {}
+        while cont < 10000:
+            print(symbol, cont)
+            volatility_X = int(round(random.uniform(1.5, 50), 1))
+            rangeVolatility = int(round(random.uniform(50, 2000), 0))
+            invalidation_X = round(random.uniform(0.2, 5), 1)
+            rangeVolatility = int(round(random.uniform(50, 1000), 0))
+            creditos, trades = volumeSystem(df, volatility_X, invalidation_X, rangeVolatility)
+            if creditos > max:
+                max = creditos
+                numTrades = trades
+                new_row = {'Symbol': symbol, 'Start': df.index.min(), 'End': df.index.max(), 'Start_Price': df["close"].iloc[0], 'End_Price': df["close"].iloc[-1], 'SpotPnl': round((df["close"].iloc[-1]/df["close"].iloc[0]) * 1000,1), 'SimulationPnl': round(max,1), 'NumTrades': numTrades, 'Volatility_X': volatility_X, 'rangeVolatility': rangeVolatility, 'invalidation_X': invalidation_X } #, 'BullWick': parameter_BullWick,  'BearWick': parameter_BearWick, 'BullRsi': rsiLongTrigger, 'BearRsi': rsiShortTrigger, "Long_Coefficient": LK, "Short_Coefficient": SK}
+            cont = cont + 1
+        print("done", symbol)
+        return new_row
+    else:
+        return False
+
+def volumen_simulation():
+    markets = kucoin.load_markets() #Load all available markets (contracts)
+    symbols = [symbol for symbol in markets if 'USDT' in symbol and markets[symbol]['linear']] # Filter for USDT-margined futures only - # List of symbols to use
+    symbols = ["BTC/USDT:USDT","ETH/USDT:USDT","SOL/USDT:USDT", "LINK/USDT:USDT", "XRP/USDT:USDT", "ASTER/USDT:USDT", "AVAX/USDT:USDT", "HYPE/USDT:USDT"] #symbols[:6]
+
+    with ProcessPoolExecutor(max_workers=12) as executor:
+        rows = list(executor.map(simulation2, symbols))
+    
+    data_rows = [x for x in rows if x is not False]
+    df = pd.DataFrame(data_rows)   
+    df.to_csv("simulation_volume_parameters.csv", index=False, encoding="utf-8", sep=";", decimal=',') 
+    
+
+def supply_demand_scanner(symbol):
+    compressionShort = False
+    compressionLong = False
+    time.sleep(random.uniform(2, 5))
+    ticker = kucoin.fetch_ohlcv(symbol, timeframe='1h', limit=5)
+    df1 = pd.DataFrame(ticker, columns=['timestamp', 'open', 'high', 'low', 'close', 'volume'])  
+    df1['timestamp'] = pd.to_datetime(df1['timestamp'], unit='ms', utc=True)
+    df1 = df1.set_index('timestamp')
+    df1["candle_range"] = df1["high"] - df1["low"]
+    df1["upper_wick"] = df1["high"] - df1[["open", "close"]].max(axis=1)
+    df1["lower_wick"] = df1[["open", "close"]].min(axis=1) - df1["low"]
+    df1['rsi'] = rsi_tradingview(df1['close'])
+    i = len(df1)-1
+    df1["ema9"] = df1["close"].ewm(span=9, adjust=False).mean()
+    while i >= 0:
+        try:
+            if df1.iloc[i]["close"] < df1.iloc[i]["ema9"]:
+                compressionShort = True
+            elif df1.iloc[i]["close"] > df1.iloc[i]["ema9"]:
+                compressionLong = True
+        except:
+            pass
+        i = i - 1
+    time.sleep(random.uniform(2, 10))
+    ticker = kucoin.fetch_ohlcv(symbol, timeframe='4h', limit=30)
+    df = pd.DataFrame(ticker, columns=['timestamp', 'open', 'high', 'low', 'close', 'volume'])  
+    df['timestamp'] = pd.to_datetime(df['timestamp'], unit='ms', utc=True)
+    df = df.set_index('timestamp')
+    df['candle_size'] = ((df['close']/df['open'])-1).abs()
+    df['avg_candle_size'] = df['candle_size'].rolling(window=10, min_periods=1).mean()
+    df["candle_range"] = df["high"] - df["low"]
+    df["upper_wick"] = df["high"] - df[["open", "close"]].max(axis=1)
+    df["lower_wick"] = df[["open", "close"]].min(axis=1) - df["low"]
+    df['rsi'] = rsi_tradingview(df['close'])
+    df["ema12"] = df["close"].ewm(span=12, adjust=False).mean()
+    df["ema21"] = df["close"].ewm(span=21, adjust=False).mean()
+    i = len(df)-1
+    shortPoints = 0
+    longPoints = 0
+    points = 1000
+    
+    while i >= len(df)-6:
+        try:
+            if (df.iloc[i]["upper_wick"] / df.iloc[i]["candle_range"]) > 0.5 and df.iloc[i]["rsi"] >= 40 and df.iloc[i]["candle_size"] > df.iloc[i]["avg_candle_size"]:
+                shortPoints = shortPoints + points
+        except:
+            pass
+        try:
+            if (df.iloc[i]["lower_wick"] / df.iloc[i]["candle_range"]) > 0.5 and df.iloc[i]["rsi"] <= 60 and df.iloc[i]["candle_size"] > df.iloc[i]["avg_candle_size"]:
+                longPoints = longPoints + points
+        except: 
+            pass
+        points = points / 1.5
+        i = i - 1
+    
+    print(symbol)
+    if shortPoints > 1000 and compressionShort and shortPoints > longPoints:
+        return {"SYMBOL": symbol, "SIDE":"SHORT", "POINTS": shortPoints}
+    elif longPoints > 1000 and compressionLong and longPoints > shortPoints:
+        return {"SYMBOL": symbol, "SIDE":"LONG", "POINTS": longPoints}
+    else:
+        return False
+
+def supply_demand_scanner_paralelizacion():
+    markets = kucoin.load_markets() #Load all available markets (contracts)
+    symbols = [symbol for symbol in markets if 'USDT' in symbol and markets[symbol]['linear']] # Filter for USDT-margined futures only - # List of symbols to use
+    
+    with ProcessPoolExecutor(max_workers=12) as executor:
+        rows = list(executor.map(supply_demand_scanner, symbols))
+    
+    data_rows = [x for x in rows if x is not False]
+    df = pd.DataFrame(data_rows)   
+    df.to_csv("triggers.csv", index=False, encoding="utf-8", sep=";", decimal=',') 
+
 
 def main():
     while True:
@@ -251,8 +266,9 @@ def main():
         print("1. Simulation")
         print("2. Test Simulation")
         print("3. Trading Triggers")
-        print("4. Exit")
-        choice = input("Choose an option (1-4): ")
+        print("4. Volume Simulation")
+        print("5. TradingTriggers")
+        choice = input("Choose an option (1-5): ")
         if choice == "1":
             symbols_simulation()
         elif choice == "2":
@@ -260,9 +276,9 @@ def main():
         elif choice == "3":
             trading_triggers()
         elif choice == "4":
-            df = getTradingDataFrame('BTC/USDT:USDT', datetime(2021, 4, 1), "1d", 100)
-            print("Goodbye!")
-            break
+            volumen_simulation()
+        elif choice == "5":
+            supply_demand_scanner_paralelizacion()
         else:
             print("Try again a valid input.")
 
@@ -273,6 +289,8 @@ if __name__ == "__main__":
 # FIBONACCI FOR TPS? CON RSI TAL VEZ, Y KEY LEVELS AND LIQUIDITY LEVELS I CAN DETECT ALSO WITH CODE
 # STUDY OF LIQUIDITY GRABS
 # PARA MEDIR LOS MOVIMIENTOS TENGO QUE UTILIZAR LA VOLATILIDAD DE LOS ULTIMOS AÑOS O ALGO Y HACERLO PROPORCIONAL
+# study of trailing stops optimization
+# multiple consecutive wicks detection for reversals !!!!
 
 # SimulationPnl > SpotPnl (time-range)
 # SimulationPnl > CashPosition (time-range)
@@ -286,6 +304,8 @@ if __name__ == "__main__":
 # 4h - 1 semana
 # 1d - 1 mes
 # 1w - 3-6 meses
+
+
 
 
 
