@@ -1,5 +1,6 @@
 #pressure/absortion code, weekly and monthly charts
 from functions import *
+from sp500 import *
 
 def tradeSystem(LT, HT, df_LowerTimeframe, parameter_BullWick, parameter_BearWick, rsiLong_LT, rsiLong_HT, rsiShort_LT, rsiShort_HT, LongK_LT, LongK_HT, ShortK_LT, ShortK_HT):
     df_HigherTimeframe_base = build_df_HigherTimeframe(HT, df_LowerTimeframe)
@@ -265,8 +266,8 @@ def main():
         print("\n=== Main Menu ===")
         print("1. Simulation")
         print("2. Test Simulation")
-        print("3. Trading Triggers")
-        print("4. Volume Simulation")
+        print("3. Crypto Market Clasification")
+        print("4. SP500 statistics")
         print("5. TradingTriggers")
         choice = input("Choose an option (1-5): ")
         if choice == "1":
@@ -274,9 +275,9 @@ def main():
         elif choice == "2":
             test_simulation()
         elif choice == "3":
-            trading_triggers()
+            crypto_market_scanner()
         elif choice == "4":
-            volumen_simulation()
+            sp500_screen()
         elif choice == "5":
             supply_demand_scanner_paralelizacion()
         else:

@@ -163,88 +163,117 @@ def test_simulation():
     df.to_csv("test_results_SL_TP.csv", index=False, encoding="utf-8", sep=";", decimal=',') 
 
 
-
 def get_symbol_data(symbol):
-    timeframes = ['4h', '1d', '1w', '1m']
+    timeframes = ['1h','4h', '1d', '1w']
     data = {}
-    for timeframe in timeframes:
-        ohlcv = kucoin.fetch_ohlcv(symbol, timeframe=timeframe, limit=100)
-        df = pd.DataFrame(ohlcv, columns=['timestamp', 'open', 'high', 'low', 'close', 'volume'])
-        df['timestamp'] = pd.to_datetime(df['timestamp'], unit='ms', utc=True)
-        df = df.set_index('timestamp')
-        df['candle_size'] = ((df['close']/df['open'])-1).abs()
-        df['avg_candle_size'] = df['candle_size'].rolling(window=10, min_periods=1).mean()
-        df["candle_range"] = df["high"] - df["low"]
-        df["upper_wick"] = df["high"] - df[["open", "close"]].max(axis=1)
-        df["lower_wick"] = df[["open", "close"]].min(axis=1) - df["low"]
-        df['rsi'] = rsi_tradingview(df['close'])
-        df["ema12"] = df["close"].ewm(span=12, adjust=False).mean()
-        df["ema25"] = df["close"].ewm(span=21, adjust=False).mean()
-        data[timeframe] = df
-    return data
+    try:
+        for timeframe in timeframes:
+            time.sleep(2)
+            ohlcv = kucoin.fetch_ohlcv(symbol, timeframe=timeframe, limit=100)
+            df = pd.DataFrame(ohlcv, columns=['timestamp', 'open', 'high', 'low', 'close', 'volume'])
+            df['timestamp'] = pd.to_datetime(df['timestamp'], unit='ms', utc=True)
+            df = df.set_index('timestamp')
+            df['candle_size'] = ((df['close']/df['open'])-1).abs()
+            df['avg_candle_size'] = df['candle_size'].rolling(window=10, min_periods=1).mean()
+            df["candle_range"] = df["high"] - df["low"]
+            df["upper_wick"] = df["high"] - df[["open", "close"]].max(axis=1)
+            df["lower_wick"] = df[["open", "close"]].min(axis=1) - df["low"]
+            df['rsi'] = rsi_tradingview(df['close'])
+            df["ema12"] = df["close"].ewm(span=12, adjust=False).mean()
+            df["ema21"] = df["close"].ewm(span=21, adjust=False).mean()
+            data[timeframe] = df
+        return data
+    except:
+        return False
 
 
 def market_status_clasification(symbol):
     data = get_symbol_data(symbol)
-    long = 0
-    short = 0
-    #rsi_long
-    if data["4h"].iloc[-1]["rsi"] < 70 and data["1d"].iloc[-1]["rsi"] < 70 and data["1w"].iloc[-1]["rsi"] < 70:
-        long = long + 10
-    #ema_long
-    if data["4h"].iloc[-1]["ema12"] > data["4h"].iloc[-1]["ema25"]:
-        long = long + 10
-    
-    if data["1d"].iloc[-1]["close"] > data["1d"].iloc[-1]["ema12"]:
-        long = long + 5
+    if data:
+        long, short = False, False
+        longConfluence, shortConfluence = 0, 0
+        # filters
+        if data["4h"].iloc[-1]["rsi"] <= 30 and data["1d"].iloc[-1]["rsi"] <= 40 and data["1w"].iloc[-1]["rsi"] <= 40 and data["1h"].iloc[-1]["ema12"] > data["1h"].iloc[-1]["ema21"]: #and data["4h"].iloc[-1]["close"] > data["4h"].iloc[-1]["ema12"] 
+            long = True
+            #if data["4h"].iloc[-1]["close"] > data["4h"].iloc[-1]["ema12"]:
+            #    longConfluence = longConfluence + 5
+            if data["4h"].iloc[-1]["ema12"] > data["4h"].iloc[-1]["ema21"]:
+                longConfluence = longConfluence + 10    
+            if data["1d"].iloc[-1]["close"] > data["1d"].iloc[-1]["ema12"]:
+                longConfluence = longConfluence + 7
+            if data["1d"].iloc[-1]["ema12"] > data["1d"].iloc[-1]["ema21"]:
+                longConfluence = longConfluence + 15
+            if data["1w"].iloc[-1]["close"] > data["1w"].iloc[-1]["ema12"]:
+                longConfluence = longConfluence + 10
+            if data["1w"].iloc[-1]["ema12"] > data["1w"].iloc[-1]["ema21"]:
+                longConfluence = longConfluence + 20
+            weight = 10
+            for timeframe in ['4h', '1d', '1w']:
+                cont = len(timeframe) - 1
+                for i in range (0, 3): 
+                    if (data[timeframe].iloc[cont]["lower_wick"] / data[timeframe].iloc[cont]["candle_range"]) >= 0.5 and data[timeframe].iloc[cont]["candle_size"] >= (0.75 * data[timeframe].iloc[cont]["avg_candle_size"]):
+                        longConfluence = longConfluence + weight
+                    cont = cont - 1
+                weight = weight * 1.5
 
-    if data["1d"].iloc[-1]["ema12"] > data["1d"].iloc[-1]["ema25"]:
-        long = long + 10
+        if data["4h"].iloc[-1]["rsi"] >= 30 and data["1d"].iloc[-1]["rsi"] >= 30 and data["1w"].iloc[-1]["rsi"] >= 30 and data["4h"].iloc[-1]["close"] < data["4h"].iloc[-1]["ema12"] and data["1h"].iloc[-1]["ema12"] < data["1h"].iloc[-1]["ema21"]:
+            short = True
+            #if data["4h"].iloc[-1]["close"] < data["4h"].iloc[-1]["ema12"]:
+            #    shortConfluence = shortConfluence + 5
+            if data["4h"].iloc[-1]["ema12"] < data["4h"].iloc[-1]["ema21"]:
+                shortConfluence = shortConfluence + 10    
+            if data["1d"].iloc[-1]["close"] < data["1d"].iloc[-1]["ema12"]:
+                shortConfluence = shortConfluence + 7
+            if data["1d"].iloc[-1]["ema12"] < data["1d"].iloc[-1]["ema21"]:
+                shortConfluence = shortConfluence + 15
+            if data["1w"].iloc[-1]["close"] < data["1w"].iloc[-1]["ema12"]:
+                shortConfluence = shortConfluence + 10
+            if data["1w"].iloc[-1]["ema12"] < data["1w"].iloc[-1]["ema21"]:
+                shortConfluence = shortConfluence + 20
+            weight = 10
+            for timeframe in ['4h', '1d', '1w']:
+                cont = len(timeframe) - 1
+                for i in range (0, 3): 
+                    if (data[timeframe].iloc[cont]["upper_wick"] / data[timeframe].iloc[cont]["candle_range"]) >= 0.5 and data[timeframe].iloc[cont]["candle_size"] >= (0.75 * data[timeframe].iloc[cont]["avg_candle_size"]):
+                        shortConfluence = shortConfluence + weight
+                    cont = cont - 1
+                weight = weight * 1.5
 
-    if data["1d"].iloc[-1]["close"] > data["1d"].iloc[-1]["ema12"]:
-        long = long + 10
-
-    if data["1d"].iloc[-1]["ema12"] > data["1d"].iloc[-1]["ema25"]:
-        long = long + 15
-    
-    
-    
-
+        if longConfluence > shortConfluence:
+            short = False
+        elif shortConfluence > longConfluence:
+            long = False
+        else: 
+            return False
+        
+        if long and longConfluence >= 50:
+            return symbol, "LONG", longConfluence
+        elif short and shortConfluence >= 50: 
+            return symbol, "SHORT", shortConfluence
+    return False
 
 
 def crypto_market_scanner():
     markets = kucoin.load_markets() #Load all available markets (contracts)
     symbols = [symbol for symbol in markets if 'USDT' in symbol and markets[symbol]['linear']] # Filter for USDT-margined futures only - # List of symbols to use
     
-
-
-
+    with ProcessPoolExecutor(max_workers=10) as executor:
+        rows = list(executor.map(market_status_clasification, symbols))
+    
+    data_rows = [x for x in rows if x is not False]
+    df = pd.DataFrame(data_rows)   
+    df.to_csv("crypto_market_clasification.csv", index=False, encoding="utf-8", sep=";", decimal=',') 
 
 
 def stock_market_scanner():
-    top20_sp500 = [
-    "NVDA",  # NVIDIA Corporation
-    "MSFT",  # Microsoft Corporation
-    "AAPL",  # Apple Inc.
-    "AMZN",  # Amazon.com, Inc.
-    "GOOGL", # Alphabet Inc. Class A
-    "GOOG",  # Alphabet Inc. Class C
-    "META",  # Meta Platforms, Inc.
-    "AVGO",  # Broadcom Inc.
-    "BRK.B", # Berkshire Hathaway Inc. Class B
-    "TSLA",  # Tesla, Inc.
-    "JPM",   # JPMorgan Chase & Co.
-    "V",     # Visa Inc.
-    "LLY",   # Eli Lilly and Co.
-    "NFLX",  # Netflix, Inc.
-    "XOM",   # Exxon Mobil Corporation
-    "MA",    # Mastercard Incorporated
-    "WMT",   # Walmart Inc.
-    "ORCL",  # Oracle Corporation
-    "JNJ",   # Johnson & Johnson
-    "HD"     # The Home Depot, Inc.
-]
+    symbols = ["NVDA","MSFT","AAPL","AMZN","GOOGL","GOOG","META","AVGO","BRK.B","TSLA","JPM","V","LLY","NFLX","XOM","MA","WMT","ORCL","JNJ","HD"]
 
+    with ProcessPoolExecutor(max_workers=10) as executor:
+        rows = list(executor.map(market_status_clasification, symbols))
+    
+    data_rows = [x for x in rows if x is not False]
+    df = pd.DataFrame(data_rows)   
+    df.to_csv("stock_market_clasification.csv", index=False, encoding="utf-8", sep=";", decimal=',') 
 
 
 
