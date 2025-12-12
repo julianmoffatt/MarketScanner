@@ -1,6 +1,7 @@
 #pressure/absortion code, weekly and monthly charts
 from functions import *
 from sp500 import *
+from statistics import *
 
 def tradeSystem(LT, HT, df_LowerTimeframe, parameter_BullWick, parameter_BearWick, rsiLong_LT, rsiLong_HT, rsiShort_LT, rsiShort_HT, LongK_LT, LongK_HT, ShortK_LT, ShortK_HT):
     df_HigherTimeframe_base = build_df_HigherTimeframe(HT, df_LowerTimeframe)
@@ -187,64 +188,39 @@ def volumen_simulation():
     
 
 def supply_demand_scanner(symbol):
-    compressionShort = False
-    compressionLong = False
     time.sleep(random.uniform(2, 5))
-    ticker = kucoin.fetch_ohlcv(symbol, timeframe='1h', limit=5)
-    df1 = pd.DataFrame(ticker, columns=['timestamp', 'open', 'high', 'low', 'close', 'volume'])  
-    df1['timestamp'] = pd.to_datetime(df1['timestamp'], unit='ms', utc=True)
-    df1 = df1.set_index('timestamp')
-    df1["candle_range"] = df1["high"] - df1["low"]
-    df1["upper_wick"] = df1["high"] - df1[["open", "close"]].max(axis=1)
-    df1["lower_wick"] = df1[["open", "close"]].min(axis=1) - df1["low"]
-    df1['rsi'] = rsi_tradingview(df1['close'])
-    i = len(df1)-1
-    df1["ema9"] = df1["close"].ewm(span=9, adjust=False).mean()
-    while i >= 0:
-        try:
-            if df1.iloc[i]["close"] < df1.iloc[i]["ema9"]:
-                compressionShort = True
-            elif df1.iloc[i]["close"] > df1.iloc[i]["ema9"]:
-                compressionLong = True
-        except:
-            pass
-        i = i - 1
-    time.sleep(random.uniform(2, 10))
-    ticker = kucoin.fetch_ohlcv(symbol, timeframe='4h', limit=30)
+    ticker = kucoin.fetch_ohlcv(symbol, timeframe='1d', limit=5)
     df = pd.DataFrame(ticker, columns=['timestamp', 'open', 'high', 'low', 'close', 'volume'])  
     df['timestamp'] = pd.to_datetime(df['timestamp'], unit='ms', utc=True)
     df = df.set_index('timestamp')
-    df['candle_size'] = ((df['close']/df['open'])-1).abs()
-    df['avg_candle_size'] = df['candle_size'].rolling(window=10, min_periods=1).mean()
     df["candle_range"] = df["high"] - df["low"]
     df["upper_wick"] = df["high"] - df[["open", "close"]].max(axis=1)
     df["lower_wick"] = df[["open", "close"]].min(axis=1) - df["low"]
     df['rsi'] = rsi_tradingview(df['close'])
-    df["ema12"] = df["close"].ewm(span=12, adjust=False).mean()
-    df["ema21"] = df["close"].ewm(span=21, adjust=False).mean()
     i = len(df)-1
+    time.sleep(random.uniform(2, 5))
     shortPoints = 0
     longPoints = 0
-    points = 1000
+    points = 5
     
-    while i >= len(df)-6:
+    while i >= 0:
         try:
-            if (df.iloc[i]["upper_wick"] / df.iloc[i]["candle_range"]) > 0.5 and df.iloc[i]["rsi"] >= 40 and df.iloc[i]["candle_size"] > df.iloc[i]["avg_candle_size"]:
+            if (df.iloc[i]["upper_wick"] / df.iloc[i]["candle_range"]) >= 0.5 and df.iloc[i]["rsi"]:# and df.iloc[i]["candle_size"] >= (df.iloc[i]["avg_candle_size"]*0.7):
                 shortPoints = shortPoints + points
+                print(symbol, shortPoints, "SHORT")
         except:
             pass
         try:
-            if (df.iloc[i]["lower_wick"] / df.iloc[i]["candle_range"]) > 0.5 and df.iloc[i]["rsi"] <= 60 and df.iloc[i]["candle_size"] > df.iloc[i]["avg_candle_size"]:
+            if (df.iloc[i]["lower_wick"] / df.iloc[i]["candle_range"]) >= 0.5 and df.iloc[i]["rsi"]:# and df.iloc[i]["candle_size"] >= (df.iloc[i]["avg_candle_size"]*0.7):
                 longPoints = longPoints + points
+                print(symbol, shortPoints, "LONG")
         except: 
             pass
-        points = points / 1.5
         i = i - 1
     
-    print(symbol)
-    if shortPoints > 1000 and compressionShort and shortPoints > longPoints:
+    if shortPoints >= 10 and shortPoints > longPoints:
         return {"SYMBOL": symbol, "SIDE":"SHORT", "POINTS": shortPoints}
-    elif longPoints > 1000 and compressionLong and longPoints > shortPoints:
+    elif longPoints >= 10 and shortPoints < longPoints:
         return {"SYMBOL": symbol, "SIDE":"LONG", "POINTS": longPoints}
     else:
         return False
@@ -270,7 +246,9 @@ def main():
         print("4. SP500 statistics")
         print("5. TradingTriggers")
         choice = input("Choose an option (1-5): ")
-        if choice == "1":
+        if choice == "0":
+            break
+        elif choice == "1":
             symbols_simulation()
         elif choice == "2":
             test_simulation()

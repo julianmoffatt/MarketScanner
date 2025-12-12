@@ -193,51 +193,25 @@ def market_status_clasification(symbol):
         long, short = False, False
         longConfluence, shortConfluence = 0, 0
         # filters
-        if data["4h"].iloc[-1]["rsi"] <= 30 and data["1d"].iloc[-1]["rsi"] <= 40 and data["1w"].iloc[-1]["rsi"] <= 40 and data["1h"].iloc[-1]["ema12"] > data["1h"].iloc[-1]["ema21"]: #and data["4h"].iloc[-1]["close"] > data["4h"].iloc[-1]["ema12"] 
+        if data["4h"].iloc[-1]["rsi"] <= 65 and data["1d"].iloc[-1]["rsi"] <= 70 and data["1w"].iloc[-1]["rsi"] <= 70 and data["1h"].iloc[-1]["ema12"] > data["1h"].iloc[-1]["ema21"] and data["4h"].iloc[-1]["ema12"] < data["4h"].iloc[-1]["ema21"]: 
             long = True
-            #if data["4h"].iloc[-1]["close"] > data["4h"].iloc[-1]["ema12"]:
-            #    longConfluence = longConfluence + 5
-            if data["4h"].iloc[-1]["ema12"] > data["4h"].iloc[-1]["ema21"]:
-                longConfluence = longConfluence + 10    
-            if data["1d"].iloc[-1]["close"] > data["1d"].iloc[-1]["ema12"]:
-                longConfluence = longConfluence + 7
-            if data["1d"].iloc[-1]["ema12"] > data["1d"].iloc[-1]["ema21"]:
-                longConfluence = longConfluence + 15
-            if data["1w"].iloc[-1]["close"] > data["1w"].iloc[-1]["ema12"]:
-                longConfluence = longConfluence + 10
-            if data["1w"].iloc[-1]["ema12"] > data["1w"].iloc[-1]["ema21"]:
-                longConfluence = longConfluence + 20
             weight = 10
-            for timeframe in ['4h', '1d', '1w']:
+            for timeframe in ['4h']:
                 cont = len(timeframe) - 1
                 for i in range (0, 3): 
-                    if (data[timeframe].iloc[cont]["lower_wick"] / data[timeframe].iloc[cont]["candle_range"]) >= 0.5 and data[timeframe].iloc[cont]["candle_size"] >= (0.75 * data[timeframe].iloc[cont]["avg_candle_size"]):
+                    if (data[timeframe].iloc[cont]["lower_wick"] / data[timeframe].iloc[cont]["candle_range"]) >= 0.5 and data[timeframe].iloc[cont]["candle_size"] >= (0.75 * data[timeframe].iloc[cont]["avg_candle_size"]) and (data[timeframe].iloc[cont]["upper_wick"] / data[timeframe].iloc[cont]["candle_range"]) <= 0.35:
                         longConfluence = longConfluence + weight
                     cont = cont - 1
-                weight = weight * 1.5
 
-        if data["4h"].iloc[-1]["rsi"] >= 30 and data["1d"].iloc[-1]["rsi"] >= 30 and data["1w"].iloc[-1]["rsi"] >= 30 and data["4h"].iloc[-1]["close"] < data["4h"].iloc[-1]["ema12"] and data["1h"].iloc[-1]["ema12"] < data["1h"].iloc[-1]["ema21"]:
+        if data["4h"].iloc[-1]["rsi"] >= 35 and data["1d"].iloc[-1]["rsi"] >= 30 and data["1w"].iloc[-1]["rsi"] >= 30 and data["1h"].iloc[-1]["ema12"] < data["1h"].iloc[-1]["ema21"] and data["4h"].iloc[-1]["ema12"] > data["4h"].iloc[-1]["ema21"]:
             short = True
-            #if data["4h"].iloc[-1]["close"] < data["4h"].iloc[-1]["ema12"]:
-            #    shortConfluence = shortConfluence + 5
-            if data["4h"].iloc[-1]["ema12"] < data["4h"].iloc[-1]["ema21"]:
-                shortConfluence = shortConfluence + 10    
-            if data["1d"].iloc[-1]["close"] < data["1d"].iloc[-1]["ema12"]:
-                shortConfluence = shortConfluence + 7
-            if data["1d"].iloc[-1]["ema12"] < data["1d"].iloc[-1]["ema21"]:
-                shortConfluence = shortConfluence + 15
-            if data["1w"].iloc[-1]["close"] < data["1w"].iloc[-1]["ema12"]:
-                shortConfluence = shortConfluence + 10
-            if data["1w"].iloc[-1]["ema12"] < data["1w"].iloc[-1]["ema21"]:
-                shortConfluence = shortConfluence + 20
             weight = 10
-            for timeframe in ['4h', '1d', '1w']:
+            for timeframe in ['4h']:
                 cont = len(timeframe) - 1
                 for i in range (0, 3): 
-                    if (data[timeframe].iloc[cont]["upper_wick"] / data[timeframe].iloc[cont]["candle_range"]) >= 0.5 and data[timeframe].iloc[cont]["candle_size"] >= (0.75 * data[timeframe].iloc[cont]["avg_candle_size"]):
+                    if (data[timeframe].iloc[cont]["upper_wick"] / data[timeframe].iloc[cont]["candle_range"]) >= 0.5 and data[timeframe].iloc[cont]["candle_size"] >= (0.75 * data[timeframe].iloc[cont]["avg_candle_size"]) and (data[timeframe].iloc[cont]["lower_wick"] / data[timeframe].iloc[cont]["candle_range"]) <= 0.35:
                         shortConfluence = shortConfluence + weight
                     cont = cont - 1
-                weight = weight * 1.5
 
         if longConfluence > shortConfluence:
             short = False
@@ -246,9 +220,9 @@ def market_status_clasification(symbol):
         else: 
             return False
         
-        if long and longConfluence >= 50:
+        if long and longConfluence >= 20:
             return symbol, "LONG", longConfluence
-        elif short and shortConfluence >= 50: 
+        elif short and shortConfluence >= 20: 
             return symbol, "SHORT", shortConfluence
     return False
 
