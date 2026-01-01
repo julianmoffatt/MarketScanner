@@ -189,12 +189,12 @@ def volumen_simulation():
 
 def supply_demand_scanner(symbol):
     time.sleep(random.uniform(2, 5))
-    ticker = kucoin.fetch_ohlcv(symbol, timeframe='1d', limit=5)
+    ticker = kucoin.fetch_ohlcv(symbol, timeframe='4h', limit=3)
     df = pd.DataFrame(ticker, columns=['timestamp', 'open', 'high', 'low', 'close', 'volume'])  
     df['timestamp'] = pd.to_datetime(df['timestamp'], unit='ms', utc=True)
     df = df.set_index('timestamp')
     df["candle_range"] = df["high"] - df["low"]
-    df["upper_wick"] = df["high"] - df[["open", "close"]].max(axis=1)
+    df["upper_wick"] = df["high"] - df[["open", "close"]].max(axis=1)-1
     df["lower_wick"] = df[["open", "close"]].min(axis=1) - df["low"]
     df['rsi'] = rsi_tradingview(df['close'])
     i = len(df)-1
@@ -207,20 +207,18 @@ def supply_demand_scanner(symbol):
         try:
             if (df.iloc[i]["upper_wick"] / df.iloc[i]["candle_range"]) >= 0.5 and df.iloc[i]["rsi"]:# and df.iloc[i]["candle_size"] >= (df.iloc[i]["avg_candle_size"]*0.7):
                 shortPoints = shortPoints + points
-                print(symbol, shortPoints, "SHORT")
         except:
             pass
         try:
-            if (df.iloc[i]["lower_wick"] / df.iloc[i]["candle_range"]) >= 0.5 and df.iloc[i]["rsi"]:# and df.iloc[i]["candle_size"] >= (df.iloc[i]["avg_candle_size"]*0.7):
+            if (df.iloc[i]["lower_wick"] / df.iloc[i]["candle_range"]) >= 0.5 and df.iloc[i]["Close"] > df.iloc[i]["Open"] :# and df.iloc[i]["candle_size"] >= (df.iloc[i]["avg_candle_size"]*0.7):
                 longPoints = longPoints + points
-                print(symbol, shortPoints, "LONG")
         except: 
             pass
         i = i - 1
     
-    if shortPoints >= 10 and shortPoints > longPoints:
+    if shortPoints > longPoints:
         return {"SYMBOL": symbol, "SIDE":"SHORT", "POINTS": shortPoints}
-    elif longPoints >= 10 and shortPoints < longPoints:
+    elif longPoints > shortPoints:
         return {"SYMBOL": symbol, "SIDE":"LONG", "POINTS": longPoints}
     else:
         return False
@@ -246,7 +244,11 @@ def main():
         print("4. SP500 statistics")
         print("5. TradingTriggers")
         choice = input("Choose an option (1-5): ")
-        if choice == "0":
+        if choice == "-1":
+            print("Which stock?")
+            ticker = input()
+            stock_statistics(ticker)
+        elif choice == "0":
             break
         elif choice == "1":
             symbols_simulation()

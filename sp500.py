@@ -10,9 +10,9 @@ def getData_SP500(date):
         spx.columns = spx.columns.get_level_values(0)
     spx_daily = spx[spx.index >= date].copy()
     #Weekly
-    spx_weekly = spx_daily.resample('W').agg({'Open': 'first','High': 'max','Low': 'min','Close': 'last','Volume': 'sum'})
+    spx_weekly = spx_daily.resample('W', label='left', closed='left').agg({'Open': 'first','High': 'max','Low': 'min','Close': 'last','Volume': 'sum'})
     #Monthly
-    spx_monthly = spx_daily.resample('ME').agg({'Open': 'first','High': 'max','Low': 'min','Close': 'last','Volume': 'sum'})
+    spx_monthly = spx_daily.resample('ME', label='left', closed='left').agg({'Open': 'first','High': 'max','Low': 'min','Close': 'last','Volume': 'sum'})
     return spx_daily, spx_weekly, spx_monthly
 
    
@@ -34,7 +34,6 @@ def sp500_screen():
       print("------------------------------------------------------------------------------------")
       timeframe2 = ["Daily", "Weekly", "Monthly"]
       cont1 = 0
-      spx_daily, spx_weekly, spx_monthly = getData_SP500('1957-03-04')
       for spx in [spx_daily, spx_weekly, spx_monthly]:
           spx['rsi'] = rsi_tradingview(spx['Close'])
           above = (spx["rsi"] >= (spx.iloc[-1]["rsi"] * 1.01)).sum()

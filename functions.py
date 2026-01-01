@@ -1,11 +1,33 @@
 from concurrent.futures import ProcessPoolExecutor
-import pandas
 import random
 import pandas as pd
 import ccxt
 import time
+import yfinance as yf
+from statistics import *
 from datetime import datetime, timezone, timedelta
 kucoin = ccxt.kucoinfutures({'enableRateLimit': True,'timeout': 90000})
+
+def getDataStock(ticker):
+    #stock_4h = yf.download(ticker, interval="4h", auto_adjust=False, progress=False)
+    stock = yf.download(ticker, interval="1d", auto_adjust=False, progress=False, period="max")
+    if isinstance(stock.columns, pd.MultiIndex):
+        stock.columns = stock.columns.get_level_values(0)
+    stock_daily = stock.copy()
+    #Weekly
+    stock_weekly = stock_daily.resample('W', label='left', closed='left').agg({'Open': 'first','High': 'max','Low': 'min','Close': 'last','Volume': 'sum'})
+    #Monthly
+    stock_monthly = stock_daily.resample('ME', label='left', closed='left').agg({'Open': 'first','High': 'max','Low': 'min','Close': 'last','Volume': 'sum'})
+    return [stock_daily, stock_weekly, stock_monthly]
+
+def stock_statistics(ticker):
+    timeframes = getDataStock(ticker) # get data of ticker
+    data_candles = preparingData(timeframes) # prepare candles and rsi, wicks values
+    strikes = statistics_strikes(data_candles) # calculation strikes probabilities
+    rsiReversalZones, currentRsi = statistics_rsi(data_candles) #calculation rsi reversal points
+
+    screen_statistics(rsiReversalZones, currentRsi, data_candles, strikes) # screen rsi and candle color probabilities
+    screen_candles(data_candles) # screen with daily, weekly and monthly candles, opens included
 
 def getTradingDataFrame2(symbol, date, timeframe, candles):
     import time
