@@ -2,6 +2,14 @@
 from functions import *
 from sp500 import *
 from statistics import *
+from screens import *
+
+def undervalued_scanner():
+    for ticker in ["NVDA", "TSLA", "AAPL", "GOOGL", "IREN", "MU", "ASTS"]:
+        timeframes = getDataStock(ticker) # get data of ticker
+        data_candles = preparingData(timeframes) # prepare candles and rsi, wicks values
+        probabilities, colours  = calculation_StrikesProbabilities(data_candles) # calculation strikes probabilities
+        print(ticker, (1-probabilities[0][-3])*100)
 
 def tradeSystem(LT, HT, df_LowerTimeframe, parameter_BullWick, parameter_BearWick, rsiLong_LT, rsiLong_HT, rsiShort_LT, rsiShort_HT, LongK_LT, LongK_HT, ShortK_LT, ShortK_HT):
     df_HigherTimeframe_base = build_df_HigherTimeframe(HT, df_LowerTimeframe)
@@ -244,14 +252,15 @@ def main():
         print("4. SP500 statistics")
         print("5. TradingTriggers")
         choice = input("Choose an option (1-5): ")
-        if choice == "-1":
-            print("Which stock?")
-            ticker = input()
-            stock_statistics(ticker)
+        if choice == "6":
+            undervalued_scanner()
         elif choice == "0":
             break
         elif choice == "1":
-            symbols_simulation()
+            #symbols_simulation()
+            print("Which stock?")
+            ticker = input()
+            stock_statistics(ticker)
         elif choice == "2":
             test_simulation()
         elif choice == "3":
