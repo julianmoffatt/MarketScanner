@@ -1,8 +1,8 @@
 import yfinance as yf
-import numpy as np
 import pandas as pd
 from functions import *
 from statistics import *
+from screens import *
 
 def getData_SP500(date):
     spx = yf.download("^GSPC", start="1957-03-04", interval="1d", auto_adjust=False, progress=False)
@@ -13,37 +13,22 @@ def getData_SP500(date):
     spx_weekly = spx_daily.resample('W', label='left', closed='left').agg({'Open': 'first','High': 'max','Low': 'min','Close': 'last','Volume': 'sum'})
     #Monthly
     spx_monthly = spx_daily.resample('ME', label='left', closed='left').agg({'Open': 'first','High': 'max','Low': 'min','Close': 'last','Volume': 'sum'})
-    return spx_daily, spx_weekly, spx_monthly
+    return [spx_daily, spx_weekly, spx_monthly]
 
-   
+
 def sp500_screen():
     print("SP500 Statistics")
     dates = input("Dates to display statistics ('AAAA-MM-DD'): ")
     dates_sp500 = dates.split(",")
     for current_date in dates_sp500:
-      print("------------------------------------------------------------------------------------")
-      print("DATA FROM", current_date)
-      print("------------------------------------------------------------------------------------")
-      spx_daily, spx_weekly, spx_monthly = getData_SP500(current_date)
-      data_candles = preparingData([spx_daily, spx_weekly, spx_monthly])
-      cont = 0
-      data = statistics_strikes(data_candles)
-      conditionalProbability(data, data_candles)
-      print("------------------------------------------------------------------------------------")
-      print("RSI statistics")
-      print("------------------------------------------------------------------------------------")
-      timeframe2 = ["Daily", "Weekly", "Monthly"]
-      cont1 = 0
-      for spx in [spx_daily, spx_weekly, spx_monthly]:
-          spx['rsi'] = rsi_tradingview(spx['Close'])
-          above = (spx["rsi"] >= (spx.iloc[-1]["rsi"] * 1.01)).sum()
-          same =  spx[(spx["rsi"] < (spx.iloc[-1]["rsi"] * 1.01)) & (spx["rsi"] > (spx.iloc[-1]["rsi"] * 0.99))].shape[0]
-          below  = (spx["rsi"] <= (spx.iloc[-1]["rsi"] * 0.99)).sum()
-          total = above + same + below
-          print(timeframe2[cont1], "is at", str(round(spx.iloc[-1]["rsi"],1)) + ",", "historically it has been", str(round((below/total)*100, 1)) + "%", "below,", str(round((same/total)*100,1)) + "%", "equal,", str(round((above/total)*100,1)) + "%", "above") 
-          cont1 = cont1 + 1
-      cont = cont + 1
-      data, currentRsi = statistics_rsi(data_candles)
-      display(data, currentRsi, data_candles)
-
-
+        print("------------------------------------------------------------------------------------")
+        print("DATA FROM", current_date)
+        print("------------------------------------------------------------------------------------")
+        data_candles = getData_SP500(current_date)
+        data = preparingData(data_candles)
+        probabilities, colours  = calculation_StrikesProbabilities(data) # calculation strikes probabilities
+        rsiReversalZones, currentRsi = calculation_RsiReversals(data_candles) #calculation rsi reversal points
+        screen_candles(data_candles) # screen with daily, weekly and monthly candles, opens included
+        screen_statistics(rsiReversalZones, currentRsi, probabilities, colours) # screen rsi and candle color probabilities  
+        flips, lastFlips = cycle_dynamics(data_candles)
+        print("SP500", flips[0], lastFlips[0], flips[1], lastFlips[1])

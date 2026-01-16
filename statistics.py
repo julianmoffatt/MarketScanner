@@ -86,17 +86,24 @@ def next_candle_probability(candle, probability_green, probability_red, num):
 def calculation_RsiReversals(data): 
     localExtremes = []
     currentRsi = []
-    parameters = [[65, 50, 35],[64, 55, 41],[68, 59, 50]] #daily, weekly, montly (umbral highs, mid confirmation, umbral low)
+    parameters = [0, 0, 0] #daily, weekly, montly (umbral highs, mid confirmation, umbral low)
     cont = 0
     for df in data:
-        df = df[df.index > df.index[0]+pd.Timedelta(days=1400)]
+        lag = [70, 500, 1800]
+        df = df[df.index > df.index[0]+pd.Timedelta(days=lag[cont])]
+        percentil_25 = np.percentile(df["rsi"], 25)
+        percentil_50 = np.percentile(df["rsi"], 50)
+        percentil_75 = np.percentile(df["rsi"], 75)
+        parameters[0] = percentil_75
+        parameters[1] = percentil_50
+        parameters[2] = percentil_25
         print("-------------------------------------------------------------------------------------------------------------")
         state, value = 0, 50
         highs, lows = [], []
         lecture = False
         date = df.index[0]
         for i in range (0, len(df)):
-            if df.iloc[i]["rsi"] >= parameters[cont][0]:
+            if df.iloc[i]["rsi"] >= parameters[0]:
                 if not lecture:
                    state = 1
                    lecture = True
@@ -106,7 +113,7 @@ def calculation_RsiReversals(data):
                     if df.iloc[i]["rsi"] > value:
                         value = df.iloc[i]["rsi"]
                         date = df.index[i]
-            elif df.iloc[i]["rsi"] <= parameters[cont][2]:
+            elif df.iloc[i]["rsi"] <= parameters[2]:
                 if not lecture:
                    state = 2
                    lecture = True
@@ -117,19 +124,19 @@ def calculation_RsiReversals(data):
                         value = df.iloc[i]["rsi"]
                         date = df.index[i]
 
-            elif df.iloc[i]["rsi"] > parameters[cont][2] and df.iloc[i]["rsi"] < parameters[cont][0] and lecture and state > 0:
-                if state == 1 and df.iloc[i]["rsi"] <= parameters[cont][1]:
-                    if value >= parameters[cont][0]:
+            elif df.iloc[i]["rsi"] > parameters[2] and df.iloc[i]["rsi"] < parameters[0] and lecture and state > 0:
+                if state == 1 and df.iloc[i]["rsi"] <= parameters[1]:
+                    if value >= parameters[0]:
                         highs.append({date: value})
                     state = 0
                     lecture = False
-                    value = parameters[cont][1]
-                elif state == 2 and df.iloc[i]["rsi"] >= parameters[cont][1]:
-                    if value <= parameters[cont][2]:
+                    value = parameters[1]
+                elif state == 2 and df.iloc[i]["rsi"] >= parameters[1]:
+                    if value <= parameters[2]:
                         lows.append({date: value})
                     state = 0
                     lecture = False
-                    value = parameters[cont][1]
+                    value = parameters[1]
         currentRsi.append({ df.index[-1] : df.iloc[-1]["rsi"]})
         aux_data = highs + lows
         data = [d for d in aux_data if not (isinstance(list(d.keys())[0], float) and np.isnan(list(d.keys())[0]))]
@@ -137,29 +144,56 @@ def calculation_RsiReversals(data):
         cont = cont + 1    
     return localExtremes, currentRsi
 
+def calculation_returns_patterns_monthly(df): # agrupo por mes y calculo la media, la deviacion estandar, % de verde y % de rojo
+    months = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"]
+    data = pd.DataFrame()
+    for month in months:
+        average_return = 0
+        standar_deviation = 0
+        green_pct = 0
+        red_pct = 0
+        data.loc[len(data)] = [month, average_return, standar_deviation, green_pct, red_pct]
+    return data
 
-def calculation_RsiReversals2(data):
-    localExtremes = []
-    currentRsi = []
-    for timeframe in data:
-        currentRsi.append({ timeframe.index[-1] : timeframe.iloc[-1]["rsi"]})
-        aux_extremes = []
-        df = timeframe[timeframe.index > timeframe.index[0]+pd.Timedelta(days=1400)]
-        percentil_5 = np.percentile(df["rsi"], 95)
-        lows = df[df["rsi"] <= percentil_5]
-        percentil_95 = np.percentile(df["rsi"], 95)
-        highs = df[df["rsi"] >= percentil_95]
-        i = 0
-        for i in range (0, len(lows)):            
-            aux_extremes = [].append({ lows.index[i] : lows.iloc[i]["rsi"]})
-        i = 0
-        for i in range (0, len(highs)):            
-            aux_extremes = [].append({ highs.index[i] : highs.iloc[i]["rsi"]})
-        #data = [d for d in aux_extremes if not (isinstance(list(d.keys())[0], float) and np.isnan(list(d.keys())[0]))]
-        localExtremes.append(data)
-    return localExtremes, currentRsi
+def cycle_dynamics_calculation(df, open):
+    flips, last, side = 0, 1, 0
+    sides = {1:0, 0:1}
+
+    if df.iloc[0]["Close"] >= open:
+        side = 1
+    else:
+        side = 0
+
+    for k in range (1, len(df)):
+        if ((df.iloc[k]["Close"] > open) and (side == 0)) or ((df.iloc[k]["Close"] < open) and (side == 1)):
+            side = sides[side]
+            flips = flips + 1
+            last = k + 1
+
+    return flips, last
+
+def cycle_dynamics(data):
+    timeframes_cycles = []
+    LT = data[0].copy()
+    for i in range (1, len(data)):
+        HT = data[i].copy()
+        cycle = pd.DataFrame()
+        cycle = pd.DataFrame(columns=["Flips", "LastFlip"])
+        for x in range(0, len(HT)-1):
+            df = LT[(LT.index >= HT.index[x]) & (LT.index < HT.index[x+1])]
+            params = cycle_dynamics_calculation(df, HT.iloc[x]["Open"])
+            cycle.loc[len(df)] = [params[0], params[1]]
+        df = LT[(LT.index >= HT.index[x])]
+        params = cycle_dynamics_calculation(df, HT.iloc[-1]["Open"])
+        cycle.loc[len(df)] = [params[0], params[1]]
+        timeframes_cycles.append(cycle)
+    return timeframes_cycles
 
 
+#print("----------")
+#print("OPEN", HT.index[x], HT.iloc[x]["Open"], HT.iloc[x]["Close"])
+#print("----------")
+#print(df)        
 
 def clean_timestamp_rsi(data):
     fechas = []

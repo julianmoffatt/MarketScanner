@@ -14,9 +14,28 @@ def stock_statistics(ticker):
     data_candles = preparingData(timeframes) # prepare candles and rsi, wicks values
     print(data_candles[0].index[0])
     probabilities, colours  = calculation_StrikesProbabilities(data_candles) # calculation strikes probabilities
-    rsiReversalZones, currentRsi = calculation_RsiReversals2(data_candles) #calculation rsi reversal points
+    rsiReversalZones, currentRsi = calculation_RsiReversals(data_candles) #calculation rsi reversal points
     screen_candles(data_candles) # screen with daily, weekly and monthly candles, opens included
     screen_statistics(rsiReversalZones, currentRsi, probabilities, colours) # screen rsi and candle color probabilities  
+    flips, lastFlips = cycle_dynamics(data_candles)
+    
+    for x in range (0, len(flips)):
+        avgFlips = 0
+        avgLastFlip = 0
+        for y in range(0, len(flips[x])):
+            avgFlips = avgFlips + flips[x][y]
+            avgLastFlip = avgLastFlip + lastFlips[x][y]
+            
+
+def cycles_study():
+    symbols = ["ASTS", "IREN", "MU", "NVDA", "MSFT","AAPL","AMZN","GOOGL","META","TSLA","BABA", "BIDU", "JD"]
+    df = pd.DataFrame(columns=["Stock", "Weekly Avg Flips", "std deviation", "Weekly Avg Last Flip", "std deviation", "Monthly Avg Flips", "std deviation","Monthly Avg Last Flip", "std deviation"])
+    for symbol in symbols:
+        timeframes = getDataStock(symbol) # get data of ticker
+        data_candles = preparingData(timeframes) # prepare candles and rsi, wicks values
+        dfs = cycle_dynamics(data_candles)
+        df.loc[len(df)] = [symbol, dfs[0]["Flips"].avg(), dfs[0]["LastFlip"].avg(), dfs[1]["Flips"].avg(), dfs[1]["LastFlip"].avg()]
+    df.to_csv("opens.csv")
 
 
 def getTradingDataFrame2(symbol, date, timeframe, candles):
@@ -252,7 +271,7 @@ def crypto_market_scanner():
 
 
 def stock_market_scanner():
-    symbols = ["NVDA","MSFT","AAPL","AMZN","GOOGL","GOOG","META","AVGO","BRK.B","TSLA","JPM","V","LLY","NFLX","XOM","MA","WMT","ORCL","JNJ","HD"]
+    symbols = ["ASTS", "IREN", "MU", "NVDA","MSFT","AAPL","AMZN","GOOGL","META","TSLA","BABA", "BIDU", "JD"]
 
     with ProcessPoolExecutor(max_workers=10) as executor:
         rows = list(executor.map(market_status_clasification, symbols))

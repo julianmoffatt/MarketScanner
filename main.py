@@ -246,8 +246,8 @@ def supply_demand_scanner_paralelizacion():
 def main():
     while True:
         print("\n=== Main Menu ===")
-        print("1. Simulation")
-        print("2. Test Simulation")
+        print("1. Statistics")
+        print("2. Cycle Study")
         print("3. Crypto Market Clasification")
         print("4. SP500 statistics")
         print("5. TradingTriggers")
@@ -262,7 +262,7 @@ def main():
             ticker = input()
             stock_statistics(ticker)
         elif choice == "2":
-            test_simulation()
+            cycles_study()
         elif choice == "3":
             crypto_market_scanner()
         elif choice == "4":

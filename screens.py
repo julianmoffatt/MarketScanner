@@ -54,24 +54,26 @@ def screen_candles(data_candles):
         month_date = data_candles[2].index[-1] + pd.Timedelta(days=1)
 
         print(week_date)
-        print(month_date)
+        print(monthly_open)
+        if timeframe == 0:
+            week, month = True, True
+            for i in range(0, len(df)):
+                if df.index[i] >= week_date and week:
+                    posWeekly = i+1
+                    week = False
+                if df.index[i] >= month_date and month:
+                    posMonthly = i+1
+                    month = False
+            print("Positions lines", posWeekly, posMonthly)
 
-        for i in range(0, len(df)):
-            if df.index[i] == week_date:
-                posWeekly = i
-            if df.index[i] == month_date:
-                posMonthly = i
-
-        try:
-            start_weekly_open = (end_candles/N) * posWeekly
-            start_monthly_open = (end_candles/N) * posMonthly
-
-            # Draw the horizontal lines starting at their date
-            if timeframe == 0:
+            try:
+                start_weekly_open = (end_candles/N) * posWeekly
+                start_monthly_open = (end_candles/N) * posMonthly
+                # Draw the horizontal lines starting at their date
                 ax.hlines(week_open, xmin=start_weekly_open, xmax=x_right, color='blue', linewidth=2, label=f"Weekly Open {week_open:.2f}")
                 ax.hlines(monthly_open, xmin=start_monthly_open, xmax=x_right, color='red', linewidth=2, label=f"Monthly Open {monthly_open:.2f}")
-        except:
-            pass
+            except:
+                pass
 
         # Title and axes
         ax.set_title(timeframes[timeframe], color='black')
