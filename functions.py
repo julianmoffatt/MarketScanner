@@ -12,30 +12,75 @@ kucoin = ccxt.kucoinfutures({'enableRateLimit': True,'timeout': 90000})
 def stock_statistics(ticker):
     timeframes = getDataStock(ticker) # get data of ticker
     data_candles = preparingData(timeframes) # prepare candles and rsi, wicks values
-    print(data_candles[0].index[0])
-    probabilities, colours  = calculation_StrikesProbabilities(data_candles) # calculation strikes probabilities
-    rsiReversalZones, currentRsi = calculation_RsiReversals(data_candles) #calculation rsi reversal points
-    screen_candles(data_candles) # screen with daily, weekly and monthly candles, opens included
-    screen_statistics(rsiReversalZones, currentRsi, probabilities, colours) # screen rsi and candle color probabilities  
-    flips, lastFlips = cycle_dynamics(data_candles)
-    
-    for x in range (0, len(flips)):
-        avgFlips = 0
-        avgLastFlip = 0
-        for y in range(0, len(flips[x])):
-            avgFlips = avgFlips + flips[x][y]
-            avgLastFlip = avgLastFlip + lastFlips[x][y]
+    return data_candles
+    #print(data_candles[0].index[0])
+    #probabilities, colours  = calculation_StrikesProbabilities(data_candles) # calculation strikes probabilities
+    #rsiReversalZones, currentRsi = calculation_RsiReversals(data_candles) #calculation rsi reversal points
+    #screen_candles(data_candles) # screen with daily, weekly and monthly candles, opens included
+    #screen_statistics(rsiReversalZones, currentRsi, probabilities, colours) # screen rsi and candle color probabilities  
             
+def cycles_data(name):
+    print("Empieza importar", name)
+    df = import_csv(name)
+    print("Acaba importar", name)
+    if not df.empty:
+        return df
+    else:    
+        if name == "flips":
+            return calculation_cycle_flips()
+        elif name == "returns":
+            print("calculation returns")
+            return calculation_cycle_returns()
+
 
 def cycles_study():
-    symbols = ["ASTS", "IREN", "MU", "NVDA", "MSFT","AAPL","AMZN","GOOGL","META","TSLA","BABA", "BIDU", "JD"]
-    df = pd.DataFrame(columns=["Stock", "Weekly Avg Flips", "std deviation", "Weekly Avg Last Flip", "std deviation", "Monthly Avg Flips", "std deviation","Monthly Avg Last Flip", "std deviation"])
-    for symbol in symbols:
-        timeframes = getDataStock(symbol) # get data of ticker
-        data_candles = preparingData(timeframes) # prepare candles and rsi, wicks values
-        dfs = cycle_dynamics(data_candles)
-        df.loc[len(df)] = [symbol, dfs[0]["Flips"].avg(), dfs[0]["LastFlip"].avg(), dfs[1]["Flips"].avg(), dfs[1]["LastFlip"].avg()]
-    df.to_csv("opens.csv")
+    df_flips = pd.DataFrame(columns=["Stock", "0 W_Flip", "1 W_Flip", "2 W_Flip", "3 W_Flip", "4 W_Flip", "0 M_Flip", "1 M_Flip", "2 M_Flip", "3 M_Flip", "4 M_Flip"])
+    try:
+        df_flips = pd.read_csv("flips.csv", index_col=0)
+        df_flips.index.name = None
+    except FileNotFoundError:    
+        symbols = ["ASTS", "IREN", "MU", "RKLB"]#, "NVDA", "MSFT", "RKLB", "NVDA", "MSFT", "AAPL", "AMZN", "GOOGL", "META", "TSLA", "BABA", "BIDU", "JD", "ADBE", "NVO", "NBIS", "MSTR"]#, "BTC-USD", "ETH-USD", "SOL-USD", "BNB-USD"]
+        df = pd.DataFrame(columns=["Stock", "Weekly Avg Flips", "std deviation", "Weekly Avg Last Flip", "std deviation", "Monthly Avg Flips", "std deviation", "Monthly Avg Last Flip", "std deviation"])
+        rows = []
+        for symbol in symbols:
+            timeframes = getDataStock(symbol) # get data of ticker
+            data_candles = preparingData(timeframes) # prepare candles and rsi, wicks values
+            start = pd.Timestamp('2025-01-01', tz='UTC')
+            returns = data_candles[0][data_candles[0].index >= start].copy()
+            returns['weekday'] = returns.index.dayofweek
+            returns['day_of_month'] = returns.index.day
+            mean_by_weekday = returns.groupby('weekday')['Return'].mean()
+            mean_by_monthday = returns.groupby('day_of_month')['Return'].mean()
+            weekday_mean = mean_by_weekday.reindex(range(5), fill_value=0)   # 0–4
+            monthday_mean = mean_by_monthday.reindex(range(1, 32), fill_value=0)       # 1–31
+            row = {'symbol': symbol}
+            row.update({f'wd_{i}': round((weekday_mean[i]-1)*100,1) for i in range(5)})
+            row.update({f'dom_{i}': round((monthday_mean[i]-1)*100,1) for i in range(1, 32)})
+            rows.append(row)   # row es dict
+
+            dfs = cycle_dynamics(data_candles)
+            counts = dfs[0]["Flips"].value_counts().reindex(range(5), fill_value=0).to_dict()
+            counts_M = dfs[1]["Flips"].value_counts().reindex(range(5), fill_value=0).to_dict()
+            #dfs[0].to_csv(symbol + "_weekly.csv")
+            #dfs[1].to_csv(symbol + "_monthly.csv")
+            total = sum(counts.values())
+            totalM = sum(counts_M.values())
+            df_flips.loc[len(df_flips)] = [symbol, round((counts[0]/total)*100,1), round((counts[1]/total)*100,1), round((counts[2]/total)*100,1), round((counts[3]/total)*100,1), round((counts[4]/total)*100,1), round((counts_M[0]/totalM)*100,1), round((counts_M[1]/totalM)*100,1), round((counts_M[2]/totalM)*100,1), round((counts_M[3]/totalM)*100,1), round((counts_M[4]/totalM)*100,1)]
+            df_returns = pd.DataFrame(rows)
+            df_returns.to_csv("returns.csv")
+            #df.loc[len(df)] = [symbol, round(dfs[0]["Flips"].mean(),2), round(dfs[0]["Flips"].std(),2), round(dfs[0]["LastFlip"].mean(), 2), round(dfs[0]["LastFlip"].std(),2), round(dfs[1]["Flips"].mean(),2), round(dfs[1]["Flips"].std(),2), round(dfs[1]["LastFlip"].mean(),2), round(dfs[1]["LastFlip"].std(),2)]
+            #df.to_csv("opens.csv")        
+    df_flips.to_csv("flips.csv")
+    return df_flips
+
+def cycles_returns():
+    df_returns = pd.DataFrame()
+    try:
+        df_returns = pd.read_csv("returns.csv", index_col=0)
+        df_returns.index.name = None
+    except FileNotFoundError: 
+        pass
+    return df_returns
 
 
 def getTradingDataFrame2(symbol, date, timeframe, candles):

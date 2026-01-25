@@ -3,6 +3,7 @@ from functions import *
 from sp500 import *
 from statistics import *
 from screens import *
+from screens_web import *
 
 def undervalued_scanner():
     for ticker in ["NVDA", "TSLA", "AAPL", "GOOGL", "IREN", "MU", "ASTS"]:
@@ -243,37 +244,37 @@ def supply_demand_scanner_paralelizacion():
     df.to_csv("triggers.csv", index=False, encoding="utf-8", sep=";", decimal=',') 
 
 
-def main():
-    while True:
-        print("\n=== Main Menu ===")
-        print("1. Statistics")
-        print("2. Cycle Study")
-        print("3. Crypto Market Clasification")
-        print("4. SP500 statistics")
-        print("5. TradingTriggers")
-        choice = input("Choose an option (1-5): ")
-        if choice == "6":
-            undervalued_scanner()
-        elif choice == "0":
-            break
-        elif choice == "1":
-            #symbols_simulation()
-            print("Which stock?")
-            ticker = input()
-            stock_statistics(ticker)
-        elif choice == "2":
-            cycles_study()
-        elif choice == "3":
-            crypto_market_scanner()
-        elif choice == "4":
-            sp500_screen()
-        elif choice == "5":
-            supply_demand_scanner_paralelizacion()
-        else:
-            print("Try again a valid input.")
-
-if __name__ == "__main__":
-    main()
+#def main():
+#    while True:
+#        print("\n=== Main Menu ===")
+#        print("1. Statistics")
+#        print("2. Cycle Study")
+#        print("3. Crypto Market Clasification")
+#        print("4. SP500 statistics")
+#        print("5. TradingTriggers")
+#        choice = input("Choose an option (1-5): ")
+#        if choice == "6":
+#            undervalued_scanner()
+#        elif choice == "0":
+#            break
+#        elif choice == "1":
+#            #symbols_simulation()
+#            print("Which stock?")
+#            ticker = input()
+#            stock_statistics(ticker)
+#        elif choice == "2":
+#            cycles_study()
+#        elif choice == "3":
+#            crypto_market_scanner()
+#        elif choice == "4":
+#            sp500_screen()
+#        elif choice == "5":
+#            supply_demand_scanner_paralelizacion()
+#        else:
+#            print("Try again a valid input.")
+#
+#if __name__ == "__main__":
+#    main()
 
 
 # FIBONACCI FOR TPS? CON RSI TAL VEZ, Y KEY LEVELS AND LIQUIDITY LEVELS I CAN DETECT ALSO WITH CODE
@@ -294,6 +295,67 @@ if __name__ == "__main__":
 # 4h - 1 semana
 # 1d - 1 mes
 # 1w - 3-6 meses
+
+import dash
+from dash import dcc, html, Input, Output
+
+app = dash.Dash(__name__)
+
+app.layout = html.Div([
+    dcc.Tabs(id="tabs", value='tab-1', children=[
+        dcc.Tab(label='Daily & Opens', value='tab-1'),
+        dcc.Tab(label='Strikes probability', value='tab-2'),
+        dcc.Tab(label='Rsi reversal points', value='tab-3'),
+        dcc.Tab(label='Open reclaims', value='tab-4'),
+        dcc.Tab(label='Returns', value='tab-5')
+    ]),
+    # Contenedor para el gráfico
+    html.Div(
+        dcc.Graph(
+            id='graph',
+            style={
+                'width': '100%',   # ocupa todo el ancho
+                'height': '90vh',  # casi toda la altura de la ventana
+            }
+        ),
+        style={
+        'margin': '0',
+        'padding': '0',
+        'height': '100vh'
+        }
+    )
+])
+
+@app.callback(
+    Output('graph', 'figure'),
+    Input('tabs', 'value')
+)
+
+def render_content(tab):
+    timeframes = getDataStock("ASTS") # get data of ticker
+    data = preparingData(timeframes) # prepare candles and rsi, wicks values
+    if tab == 'tab-1':
+        fig = screen_candles_plotly(data)
+        return fig
+    elif tab == 'tab-2':
+        probabilities, colours  = calculation_StrikesProbabilities(data) # calculation strikes probabilities
+        return screen_strikes_plotly(probabilities, colours)
+    elif tab == 'tab-3':
+        rsiReversalZones, currentRsi = calculation_RsiReversals(data) #calculation rsi reversal points
+        return screen_rsi_plotly(rsiReversalZones, currentRsi)
+    elif tab == 'tab-4':
+        df1 = cycles_data("flips")
+        return table_fig(df1, "flips")
+    elif tab == 'tab-5':
+        df2 = cycles_data("returns")
+        return table_fig(df2, "returns")
+    else:
+        pass #funciones que devuelvan Figs
+
+if __name__ == "__main__":
+    app.run(debug=True)
+
+
 
 
 

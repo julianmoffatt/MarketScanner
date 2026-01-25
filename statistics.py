@@ -1,6 +1,7 @@
 import numpy as np
 from functions import * 
 import pandas as pd
+from data import *
 
 # Calculation of strikes probabilities
 def calculation_StrikesProbabilities(data):
@@ -144,18 +145,12 @@ def calculation_RsiReversals(data):
         cont = cont + 1    
     return localExtremes, currentRsi
 
-def calculation_returns_patterns_monthly(df): # agrupo por mes y calculo la media, la deviacion estandar, % de verde y % de rojo
-    months = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"]
-    data = pd.DataFrame()
-    for month in months:
-        average_return = 0
-        standar_deviation = 0
-        green_pct = 0
-        red_pct = 0
-        data.loc[len(data)] = [month, average_return, standar_deviation, green_pct, red_pct]
-    return data
-
-def cycle_dynamics_calculation(df, open):
+def cycle_dynamics_calculation(df, open, open_day):
+    #print("---------------------------------")
+    print(open_day, open)
+    #print("---------------------------------")
+    #print(df)
+    #print("---------------------------------")
     flips, last, side = 0, 1, 0
     sides = {1:0, 0:1}
 
@@ -166,34 +161,82 @@ def cycle_dynamics_calculation(df, open):
 
     for k in range (1, len(df)):
         if ((df.iloc[k]["Close"] > open) and (side == 0)) or ((df.iloc[k]["Close"] < open) and (side == 1)):
+            #print(k, open, df.index[k], df.iloc[k]["Close"], "side:", side)
             side = sides[side]
             flips = flips + 1
             last = k + 1
 
     return flips, last
 
+
 def cycle_dynamics(data):
     timeframes_cycles = []
     LT = data[0].copy()
+    end = []
+    end.append(pd.to_datetime((data[1].index[-1] + pd.Timedelta(days=7)), utc=True))
+    end.append(pd.to_datetime((data[2].index[-1] + pd.offsets.MonthBegin(1)), utc=True))
+    
     for i in range (1, len(data)):
         HT = data[i].copy()
+        LT = LT[LT.index < end[i-1]]
         cycle = pd.DataFrame()
-        cycle = pd.DataFrame(columns=["Flips", "LastFlip"])
+        cycle = pd.DataFrame(columns=["Date", "Open", "Flips", "LastFlip"])
         for x in range(0, len(HT)-1):
             df = LT[(LT.index >= HT.index[x]) & (LT.index < HT.index[x+1])]
-            params = cycle_dynamics_calculation(df, HT.iloc[x]["Open"])
-            cycle.loc[len(df)] = [params[0], params[1]]
-        df = LT[(LT.index >= HT.index[x])]
-        params = cycle_dynamics_calculation(df, HT.iloc[-1]["Open"])
-        cycle.loc[len(df)] = [params[0], params[1]]
+            if df.empty:
+                continue
+            params = cycle_dynamics_calculation(df, HT.iloc[x]["Open"], HT.index[x])
+            cycle.loc[len(cycle)] = [HT.index[x], round(HT.iloc[x]["Open"],1), params[0], params[1]]
+        df = LT[(LT.index >= HT.index[-1])]
+        if not df.empty:
+            params = cycle_dynamics_calculation(df, HT.iloc[-1]["Open"], HT.index[-1])
+            cycle.loc[len(cycle)] = [HT.index[-1], round(HT.iloc[-1]["Open"],1), params[0], params[1]]
+        cycle.set_index("Date", inplace=True)
         timeframes_cycles.append(cycle)
     return timeframes_cycles
 
 
-#print("----------")
-#print("OPEN", HT.index[x], HT.iloc[x]["Open"], HT.iloc[x]["Close"])
-#print("----------")
-#print(df)        
+def calculation_cycle_flips():
+    symbols = getSymbols()
+    df = pd.DataFrame(columns=["Stock", "0 W_Flip", "1 W_Flip", "2 W_Flip", "3 W_Flip", "4 W_Flip", "0 M_Flip", "1 M_Flip", "2 M_Flip", "3 M_Flip", "4 M_Flip"])
+    for symbol in symbols:
+        timeframes = getDataStock(symbol) # get data of ticker        
+        #timeframes = last_10_years(aux_timeframes)
+        data_candles = preparingData(timeframes) # prepare candles and rsi, wicks values
+        dfs = cycle_dynamics(data_candles)
+        counts = dfs[0]["Flips"].value_counts().reindex(range(5), fill_value=0).to_dict()
+        counts_M = dfs[1]["Flips"].value_counts().reindex(range(5), fill_value=0).to_dict()
+        total = sum(counts.values())
+        totalM = sum(counts_M.values())
+        df.loc[len(df)] = [symbol, round((counts[0]/total)*100,1), round((counts[1]/total)*100,1), round((counts[2]/total)*100,1), round((counts[3]/total)*100,1), round((counts[4]/total)*100,1), round((counts_M[0]/totalM)*100,1), round((counts_M[1]/totalM)*100,1), round((counts_M[2]/totalM)*100,1), round((counts_M[3]/totalM)*100,1), round((counts_M[4]/totalM)*100,1)]
+    df.to_csv("flips.csv")
+    return df
+
+
+def calculation_cycle_returns():
+    symbols = getSymbols()
+    rows = []
+    for symbol in symbols:
+        print(symbol)
+        timeframes = getDataStock(symbol) # get data of ticker        
+        #timeframes = last_10_years(aux_timeframes)
+        data_candles = preparingData(timeframes) # prepare candles and rsi, wicks values
+        returns = data_candles[0].copy()
+        returns['weekday'] = returns.index.dayofweek
+        returns['day_of_month'] = returns.index.day
+        mean_by_weekday = returns.groupby('weekday')['Return'].mean()
+        mean_by_monthday = returns.groupby('day_of_month')['Return'].mean()
+        weekday_mean = mean_by_weekday.reindex(range(5), fill_value=0)   # 0–4
+        monthday_mean = mean_by_monthday.reindex(range(1, 32), fill_value=0)       # 1–31
+        row = {'symbol': symbol}
+        row.update({f'S{i}': round((weekday_mean[i]-1)*100,1) for i in range(5)})
+        row.update({f'M{i}': round((monthday_mean[i]-1)*100,1) for i in range(1, 32)})
+        rows.append(row)   # row es dict
+    df = pd.DataFrame(rows)
+    df.to_csv("returns.csv")
+    return df
+
+    
 
 def clean_timestamp_rsi(data):
     fechas = []

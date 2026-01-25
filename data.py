@@ -3,14 +3,24 @@ import pandas as pd
 import numpy as np
 from functions import *
 
+def getSymbols():
+    symbols = ["ASTS", "IREN", "MU", "RKLB", "NVDA", "MSFT", "NVDA", "MSFT", "AAPL", "AMZN", "GOOGL", "META", "TSLA", "BABA", "BIDU", "JD", "ADBE", "NVO", "MSTR", "BTC-USD", "ETH-USD"] #, "SOL-USD", "BNB-USD"]
+    return symbols
+
 def getDataStock(ticker):
-    stock = yf.download(ticker, interval="1d", auto_adjust=False, progress=False, period="max")
-    if isinstance(stock.columns, pd.MultiIndex):
-        stock.columns = stock.columns.get_level_values(0)
-    stock_daily = stock.copy()
-    #stock_daily = stock_daily[stock_daily.index >="2024-01-01"] #filtrar a partir de fecha
-    stock_weekly = stock_daily.resample('W', label='left', closed='left').agg({'Open': 'first','High': 'max','Low': 'min','Close': 'last','Volume': 'sum'})
-    stock_monthly = stock_daily.resample('ME', label='left', closed='left').agg({'Open': 'first','High': 'max','Low': 'min','Close': 'last','Volume': 'sum'})
+    stock_daily = yf.download(ticker, interval="1d", auto_adjust=False, progress=False, period="max")
+    if isinstance(stock_daily.columns, pd.MultiIndex):
+        stock_daily.columns = stock_daily.columns.get_level_values(0)
+    #stock_daily = stock_daily.loc[pd.to_datetime("2016-01-01"):]
+    # FORCE UTC ONCE — DO NOT REMOVE
+    stock_daily.index = pd.to_datetime(stock_daily.index, utc=True)
+    # Optional but recommended: normalize to 00:00 UTC
+    stock_daily.index = stock_daily.index.normalize()
+    stock_daily = stock_daily.sort_index()
+    # Monday-based weeks (unchanged)
+    stock_weekly = stock_daily.resample('W-MON', label='left', closed='left').agg({'Open': 'first','High': 'max','Low': 'min','Close': 'last','Volume': 'sum'})
+    # Month START (TradingView monthly open logic)
+    stock_monthly = stock_daily.resample('MS', label='left', closed='left').agg({'Open': 'first','High': 'max','Low': 'min','Close': 'last','Volume': 'sum'})
     return [stock_daily, stock_weekly, stock_monthly]
 
 def rsi_tradingview(prices, period=14): #calculation of rsi
@@ -33,9 +43,8 @@ def preparingData(data):
         df["Upper_wick"] = df["High"] - df[["Open", "Close"]].max(axis=1)
         df["Lower_wick"] = df[["Open", "Close"]].min(axis=1) - df["Low"]
         df["Return"] = df["Close"] / df["Last_Close"]
-        df["Volatility"] = abs(round((df["Close"] / df["Last_Close"]), 2) - 1)
-        if cont == 2:
-            df["Month"] = "January" # label depending on index date 
+        df["Volatility"] = abs(df["Return"])  
+        
         df = df.sort_values(by="Return", ascending=False)
         i = 0
         for i in range(0, 20):    
@@ -44,7 +53,23 @@ def preparingData(data):
             num = num * 100
             num = num - 100
             num = round(num, 1)
-            print(i + 1, df.index[i], num, "%")
-        print("-----------------------------------------------------------------")
+            #print(i + 1, df.index[i], num, "%")
+        #print("-----------------------------------------------------------------")
         cont = cont + 1
     return data
+
+def last_10_years(data):
+    for i in range(0, 3):
+        data[i] = data[i].index[pd.to_datetime("2016-01-01"):].copy()
+    return data
+
+def import_csv(name):
+    try:
+        df = pd.read_csv(name + ".csv", index_col=0)
+        print("Importando", name)
+        print(df)
+        df.index.name = None
+        return df
+    except:
+        df = pd.DataFrame()
+        return df
