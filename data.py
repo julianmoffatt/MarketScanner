@@ -2,10 +2,27 @@ import yfinance as yf
 import pandas as pd
 import numpy as np
 from functions import *
+from statistics import *
 
 def getSymbols():
-    symbols = ["ASTS", "IREN", "MU", "RKLB", "NVDA", "MSFT", "NVDA", "MSFT", "AAPL", "AMZN", "GOOGL", "META", "TSLA", "BABA", "BIDU", "JD", "ADBE", "NVO", "MSTR", "BTC-USD", "ETH-USD"] #, "SOL-USD", "BNB-USD"]
+    symbols = ["ASTS", "IREN", "MU", "RKLB", "NVDA", "MSFT", "NVDA", "MSFT", "AAPL", "AMZN", "GOOGL", "META", "TSLA", "BABA", "BIDU", "JD", "ADBE", "NVO", "MSTR", "BTC-USD", "ETH-USD"]
     return symbols
+
+def valid_stock(stock):
+    symbols = getSymbols()
+    if stock in symbols:
+        return True
+    else:
+        return False    
+
+def getCurrentStockPos(stock):
+    symbols = getSymbols()
+    pos = 0
+    for symbol in symbols:
+        if symbol == stock:
+            return pos
+        pos = pos + 1
+    return -1
 
 def getDataStock(ticker):
     stock_daily = yf.download(ticker, interval="1d", auto_adjust=False, progress=False, period="max")
@@ -73,3 +90,18 @@ def import_csv(name):
     except:
         df = pd.DataFrame()
         return df
+    
+    
+def load_data(name):
+    print("Empieza importar", name)
+    df = import_csv(name)
+    print("Acaba importar", name)
+    if not df.empty:
+        return df
+    else:    
+        if name == "flips":
+            return calculation_cycle_flips()
+        elif name == "returns":
+            return calculation_cycle_returns()
+        elif name == "current_flips":
+            return current_cycle_flips()

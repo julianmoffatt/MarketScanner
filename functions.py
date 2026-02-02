@@ -18,19 +18,6 @@ def stock_statistics(ticker):
     #rsiReversalZones, currentRsi = calculation_RsiReversals(data_candles) #calculation rsi reversal points
     #screen_candles(data_candles) # screen with daily, weekly and monthly candles, opens included
     #screen_statistics(rsiReversalZones, currentRsi, probabilities, colours) # screen rsi and candle color probabilities  
-            
-def cycles_data(name):
-    print("Empieza importar", name)
-    df = import_csv(name)
-    print("Acaba importar", name)
-    if not df.empty:
-        return df
-    else:    
-        if name == "flips":
-            return calculation_cycle_flips()
-        elif name == "returns":
-            print("calculation returns")
-            return calculation_cycle_returns()
 
 
 def cycles_study():

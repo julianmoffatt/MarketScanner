@@ -28,13 +28,14 @@ def calculation_StrikesProbabilities(data):
         print(sorted_by_key_red)
         print("---------------------------------------------------------------")
         strikes.append({"Green": dict(sorted(strike["Green"].items())),"Red":   dict(sorted(strike["Red"].items()))})
-
-    probabilities, colours = [], []
+    #ocurrences = []
+    probabilities, colours = [], [], 
     for cont in range(len(strikes)):
         number_points = 12
         probability_green = strikes[cont]["Green"]
         probability_red = strikes[cont]["Red"]
         probability_list = []
+        #ocurrences_list = []
         x0 = (len(data[cont]) - 1) - number_points 
         num = 1
         candle = data[cont].iloc[x0]["type"]
@@ -49,7 +50,7 @@ def calculation_StrikesProbabilities(data):
                 num = num + 1
             else:
                 num = 1
-            probability = next_candle_probability(data[cont].iloc[i]["type"], probability_green, probability_red, num)
+            probability = next_candle_probability(data[cont].iloc[i]["type"], probability_green, probability_red, num) # returns red prob, get green with 1 - red prob
             probability_list.append(probability)
 
         color_list = []
@@ -67,7 +68,7 @@ def calculation_StrikesProbabilities(data):
 
     return probabilities, colours  
 
-# Gives the probabilityies of the next candle depending on colour and current strike
+# Gives the probabilities of the next candle depending on colour and current strike
 def next_candle_probability(candle, probability_green, probability_red, num):
     streaks = pd.DataFrame()
     if candle == "Green":
@@ -76,11 +77,11 @@ def next_candle_probability(candle, probability_green, probability_red, num):
         streaks = pd.DataFrame(list(probability_red.items()), columns=["days", "frequency"])
     beyond = streaks[streaks["days"]>num]["frequency"].sum()
     equal = streaks[streaks["days"]==num]["frequency"].sum()
-    probRed = round((beyond / (equal + beyond)), 2)
+    probBeyond = round((beyond / (equal + beyond)), 2) #probabilidad de racha continuando
     if candle == "Green":
-        return 1-probRed
+        return 1-probBeyond#, beyond, equal        # i want to return red probability so, for a green strike the red prob is inverse of beyond (beyond is continuation of green)
     else:
-        return probRed
+        return probBeyond#, equal, beyond
     
 
 # Calculo de los reversal points del rsi para las graficas
@@ -145,12 +146,8 @@ def calculation_RsiReversals(data):
         cont = cont + 1    
     return localExtremes, currentRsi
 
-def cycle_dynamics_calculation(df, open, open_day):
-    #print("---------------------------------")
-    print(open_day, open)
-    #print("---------------------------------")
-    #print(df)
-    #print("---------------------------------")
+
+def cycle_dynamics_calculation(df, open):
     flips, last, side = 0, 1, 0
     sides = {1:0, 0:1}
 
@@ -185,11 +182,11 @@ def cycle_dynamics(data):
             df = LT[(LT.index >= HT.index[x]) & (LT.index < HT.index[x+1])]
             if df.empty:
                 continue
-            params = cycle_dynamics_calculation(df, HT.iloc[x]["Open"], HT.index[x])
+            params = cycle_dynamics_calculation(df, HT.iloc[x]["Open"])
             cycle.loc[len(cycle)] = [HT.index[x], round(HT.iloc[x]["Open"],1), params[0], params[1]]
         df = LT[(LT.index >= HT.index[-1])]
         if not df.empty:
-            params = cycle_dynamics_calculation(df, HT.iloc[-1]["Open"], HT.index[-1])
+            params = cycle_dynamics_calculation(df, HT.iloc[-1]["Open"])
             cycle.loc[len(cycle)] = [HT.index[-1], round(HT.iloc[-1]["Open"],1), params[0], params[1]]
         cycle.set_index("Date", inplace=True)
         timeframes_cycles.append(cycle)
@@ -200,17 +197,45 @@ def calculation_cycle_flips():
     symbols = getSymbols()
     df = pd.DataFrame(columns=["Stock", "0 W_Flip", "1 W_Flip", "2 W_Flip", "3 W_Flip", "4 W_Flip", "0 M_Flip", "1 M_Flip", "2 M_Flip", "3 M_Flip", "4 M_Flip"])
     for symbol in symbols:
-        timeframes = getDataStock(symbol) # get data of ticker        
+        print(symbol)
+        timeframes = getDataStock(symbol) # get data of ticker
+        print("1")        
         #timeframes = last_10_years(aux_timeframes)
         data_candles = preparingData(timeframes) # prepare candles and rsi, wicks values
+        print("2") 
         dfs = cycle_dynamics(data_candles)
+        print("3") 
         counts = dfs[0]["Flips"].value_counts().reindex(range(5), fill_value=0).to_dict()
         counts_M = dfs[1]["Flips"].value_counts().reindex(range(5), fill_value=0).to_dict()
         total = sum(counts.values())
         totalM = sum(counts_M.values())
+        print("4") 
         df.loc[len(df)] = [symbol, round((counts[0]/total)*100,1), round((counts[1]/total)*100,1), round((counts[2]/total)*100,1), round((counts[3]/total)*100,1), round((counts[4]/total)*100,1), round((counts_M[0]/totalM)*100,1), round((counts_M[1]/totalM)*100,1), round((counts_M[2]/totalM)*100,1), round((counts_M[3]/totalM)*100,1), round((counts_M[4]/totalM)*100,1)]
+        print("5") 
     df.to_csv("flips.csv")
     return df
+
+def current_cycle_flips():
+    symbols = getSymbols()
+    rows = []
+    for symbol in symbols:
+        timeframes = getDataStock(symbol) # get data of ticker
+        data_candles = preparingData(timeframes) # prepare candles and rsi, wicks values
+        symbol_flips = []
+        row = {}
+        for i in range (1,3):
+            daily = data_candles[0][data_candles[0].index >= data_candles[i].index[-1]]
+            open_price = data_candles[i].iloc[-1]["Open"]
+            flips, lastFlip = cycle_dynamics_calculation(daily, open_price)
+            if flips > 4:
+                flips = 4 #represent a 5+ or a cell with the actual number
+            symbol_flips.append([flips, lastFlip])
+        row = {"symbol": symbol, "weeklyFlip": symbol_flips[0][0], "weeklyLastFlip": symbol_flips[0][1], "monthlyFlip": symbol_flips[1][0], "monthlyLastFlip": symbol_flips[1][1]}
+        rows.append(row)   
+    df = pd.DataFrame(rows)
+    df.to_csv("current_flips.csv")     
+    print("i return the csv")
+    return df 
 
 
 def calculation_cycle_returns():
@@ -235,7 +260,6 @@ def calculation_cycle_returns():
     df = pd.DataFrame(rows)
     df.to_csv("returns.csv")
     return df
-
     
 
 def clean_timestamp_rsi(data):
@@ -257,6 +281,14 @@ def clean_timestamp_rsi(data):
                 valores.append(v)
 
     return fechas, valores
+
+def symbols_probability_list():
+    symbols = getSymbols()
+    for symbol in symbols:
+        timeframes = getDataStock(symbol) # get data of ticker 
+        data_candles = preparingData(timeframes)
+        probabilities, colours  = calculation_StrikesProbabilities(data_candles)
+
 
 
 

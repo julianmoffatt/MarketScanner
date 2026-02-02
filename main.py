@@ -5,6 +5,8 @@ from statistics import *
 from screens import *
 from screens_web import *
 
+stock = "ASTS"
+
 def undervalued_scanner():
     for ticker in ["NVDA", "TSLA", "AAPL", "GOOGL", "IREN", "MU", "ASTS"]:
         timeframes = getDataStock(ticker) # get data of ticker
@@ -304,10 +306,12 @@ app = dash.Dash(__name__)
 app.layout = html.Div([
     dcc.Tabs(id="tabs", value='tab-1', children=[
         dcc.Tab(label='Daily & Opens', value='tab-1'),
-        dcc.Tab(label='Strikes probability', value='tab-2'),
-        dcc.Tab(label='Rsi reversal points', value='tab-3'),
-        dcc.Tab(label='Open reclaims', value='tab-4'),
-        dcc.Tab(label='Returns', value='tab-5')
+        dcc.Tab(label='Weekly & Opens', value='tab-2'),
+        dcc.Tab(label='Monthly & Opens', value='tab-3'),
+        dcc.Tab(label='Strikes probability', value='tab-4'),
+        dcc.Tab(label='Rsi reversal points', value='tab-5'),
+        dcc.Tab(label='Open reclaims', value='tab-6'),
+        dcc.Tab(label='Returns', value='tab-7')
     ]),
     # Contenedor para el gráfico
     html.Div(
@@ -331,26 +335,44 @@ app.layout = html.Div([
     Input('tabs', 'value')
 )
 
-def render_content(tab):
-    timeframes = getDataStock("ASTS") # get data of ticker
+def render_content(tab):    
+    stock = "ASTS"
+    timeframes = getDataStock(stock) # get data of ticker
     data = preparingData(timeframes) # prepare candles and rsi, wicks values
+
     if tab == 'tab-1':
-        fig = screen_candles_plotly(data)
+        fig = screen_daily_chart(data)
         return fig
     elif tab == 'tab-2':
+        fig = screen_weekly_chart(data)
+        return fig
+    elif tab == 'tab-3':
+        fig = screen_monthly_chart(data)
+        return fig
+    elif tab == 'tab-4':
         probabilities, colours  = calculation_StrikesProbabilities(data) # calculation strikes probabilities
         return screen_strikes_plotly(probabilities, colours)
-    elif tab == 'tab-3':
+    elif tab == 'tab-5':
         rsiReversalZones, currentRsi = calculation_RsiReversals(data) #calculation rsi reversal points
         return screen_rsi_plotly(rsiReversalZones, currentRsi)
-    elif tab == 'tab-4':
-        df1 = cycles_data("flips")
-        return table_fig(df1, "flips")
-    elif tab == 'tab-5':
-        df2 = cycles_data("returns")
-        return table_fig(df2, "returns")
+    elif tab == 'tab-6':
+        df1 = load_data("flips")
+        current_flips = load_data("current_flips")
+        print("here")
+        #current_stock = getCurrentStockPos(stock)
+        print("here")
+        colours = colour_painting(df1, "flips", current_flips, None)
+        print("here")
+        return table_fig(df1, colours)
+    elif tab == 'tab-7':
+        df2 = load_data("returns")
+        current_stock_pos = getCurrentStockPos(stock)
+        current_returns = pd.DataFrame()
+        colours = colour_painting(df2, "returns", current_returns, current_stock_pos)
+        return table_fig(df2, colours)
     else:
         pass #funciones que devuelvan Figs
+
 
 if __name__ == "__main__":
     app.run(debug=True)
