@@ -1,8 +1,6 @@
 import yfinance as yf
 import pandas as pd
 import numpy as np
-from functions import *
-from statistics import *
 
 def getSymbols():
     symbols = ["ASTS", "IREN", "MU", "RKLB", "NVDA", "MSFT", "NVDA", "MSFT", "AAPL", "AMZN", "GOOGL", "META", "TSLA", "BABA", "BIDU", "JD", "ADBE", "NVO", "MSTR", "BTC-USD", "ETH-USD"]
@@ -51,28 +49,27 @@ def rsi_tradingview(prices, period=14): #calculation of rsi
     return rsi
 
 def preparingData(data):
-    cont = 0
     for df in data:
         df["Last_Close"] = df["Close"].shift(1)
         df["type"] = np.where(df["Close"] > df["Last_Close"], "Green", "Red")
         df["rsi"] = rsi_tradingview(df['Close'])
-        df["Candle_Lenght"] = df["High"] - df["Low"]
-        df["Upper_wick"] = df["High"] - df[["Open", "Close"]].max(axis=1)
-        df["Lower_wick"] = df[["Open", "Close"]].min(axis=1) - df["Low"]
-        df["Return"] = df["Close"] / df["Last_Close"]
-        df["Volatility"] = abs(df["Return"])  
+        #df["Candle_Lenght"] = df["High"] - df["Low"]
+        #df["Upper_wick"] = df["High"] - df[["Open", "Close"]].max(axis=1)
+        #df["Lower_wick"] = df[["Open", "Close"]].min(axis=1) - df["Low"]
+        #df["Return"] = df["Close"] / df["Last_Close"]
+        #df["Volatility"] = abs(df["Return"])
         
-        df = df.sort_values(by="Return", ascending=False)
-        i = 0
-        for i in range(0, 20):    
-            num = 0        
-            num = round(df.iloc[i]["Return"],3)
-            num = num * 100
-            num = num - 100
-            num = round(num, 1)
-            #print(i + 1, df.index[i], num, "%")
-        #print("-----------------------------------------------------------------")
-        cont = cont + 1
+        #df = df.sort_values(by="Return", ascending=False)
+        #i = 0
+        #for i in range(0, 20):    
+        #    num = 0        
+        #    num = round(df.iloc[i]["Return"],3)
+        #    num = num * 100
+        #    num = num - 100
+        #    num = round(num, 1)
+        #    #print(i + 1, df.index[i], num, "%")
+        ##print("-----------------------------------------------------------------")
+        #cont = cont + 1
     return data
 
 def last_10_years(data):
@@ -91,17 +88,3 @@ def import_csv(name):
         df = pd.DataFrame()
         return df
     
-    
-def load_data(name):
-    print("Empieza importar", name)
-    df = import_csv(name)
-    print("Acaba importar", name)
-    if not df.empty:
-        return df
-    else:    
-        if name == "flips":
-            return calculation_cycle_flips()
-        elif name == "returns":
-            return calculation_cycle_returns()
-        elif name == "current_flips":
-            return current_cycle_flips()

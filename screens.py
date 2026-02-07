@@ -1,5 +1,5 @@
 from functions import * 
-from statistics import *
+from statistics_calculations import *
 import matplotlib.pyplot as plt
 import matplotlib.gridspec as gridspec
 import mplfinance as mpf

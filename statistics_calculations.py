@@ -1,6 +1,7 @@
 import numpy as np
 from functions import * 
 import pandas as pd
+
 from data import *
 
 # Calculation of strikes probabilities
@@ -70,6 +71,7 @@ def calculation_StrikesProbabilities(data):
 
 # Gives the probabilities of the next candle depending on colour and current strike
 def next_candle_probability(candle, probability_green, probability_red, num):
+    probBeyond = 0
     streaks = pd.DataFrame()
     if candle == "Green":
         streaks = pd.DataFrame(list(probability_green.items()), columns=["days", "frequency"])
@@ -77,7 +79,9 @@ def next_candle_probability(candle, probability_green, probability_red, num):
         streaks = pd.DataFrame(list(probability_red.items()), columns=["days", "frequency"])
     beyond = streaks[streaks["days"]>num]["frequency"].sum()
     equal = streaks[streaks["days"]==num]["frequency"].sum()
-    probBeyond = round((beyond / (equal + beyond)), 2) #probabilidad de racha continuando
+    if (equal + beyond) > 0:
+        probBeyond = round((beyond / (equal + beyond)), 2) #probabilidad de racha continuando
+
     if candle == "Green":
         return 1-probBeyond#, beyond, equal        # i want to return red probability so, for a green strike the red prob is inverse of beyond (beyond is continuation of green)
     else:
@@ -216,9 +220,11 @@ def calculation_cycle_flips():
     return df
 
 def current_cycle_flips():
+    print("i start")
     symbols = getSymbols()
     rows = []
     for symbol in symbols:
+        print("i process", symbol)
         timeframes = getDataStock(symbol) # get data of ticker
         data_candles = preparingData(timeframes) # prepare candles and rsi, wicks values
         symbol_flips = []
@@ -254,7 +260,7 @@ def calculation_cycle_returns():
         weekday_mean = mean_by_weekday.reindex(range(5), fill_value=0)   # 0–4
         monthday_mean = mean_by_monthday.reindex(range(1, 32), fill_value=0)       # 1–31
         row = {'symbol': symbol}
-        row.update({f'S{i}': round((weekday_mean[i]-1)*100,1) for i in range(5)})
+        row.update({f'S{i+1}': round((weekday_mean[i]-1)*100,1) for i in range(5)})
         row.update({f'M{i}': round((monthday_mean[i]-1)*100,1) for i in range(1, 32)})
         rows.append(row)   # row es dict
     df = pd.DataFrame(rows)
@@ -281,6 +287,40 @@ def clean_timestamp_rsi(data):
                 valores.append(v)
 
     return fechas, valores
+
+def rsi_tradingview(prices, period=14):
+    delta = prices.diff()
+    gain = delta.clip(lower=0)
+    loss = -delta.clip(upper=0)
+    avg_gain = gain.ewm(alpha=1/period, adjust=False).mean()
+    avg_loss = loss.ewm(alpha=1/period, adjust=False).mean()
+    rs = avg_gain / avg_loss
+    rsi = 100 - (100 / (1 + rs))
+    return rsi
+
+
+# Calculo de EMA EXTENSION
+def calculation_ema_extension (stock): 
+    data_aux = getDataStock(stock)
+    data = preparingData(data_aux)
+
+    ema_extensions = []
+    for df in data:
+        df = df.copy()
+        df["EMA10"] = df["Close"].ewm(span=10, adjust=False).mean()
+        df["extension_ema10"] = ((df["Close"] - df["EMA10"]) / df["EMA10"])*100
+        df["EMA50"] = df["Close"].ewm(span=50, adjust=False).mean()
+        df["extension_ema50"] = ((df["Close"] - df["EMA50"]) / df["EMA50"])*100
+        df["EMA100"] = df["Close"].ewm(span=100, adjust=False).mean()
+        df["extension_ema100"] = ((df["Close"] - df["EMA100"]) / df["EMA100"])*100
+        df["EMA200"] = df["Close"].ewm(span=200, adjust=False).mean()
+        df["extension_ema200"] = ((df["Close"] - df["EMA200"]) / df["EMA200"])*100
+        df = df.iloc[20:].copy()   
+        ema_extensions.append(df)
+    
+    #ema_extensions.to_csv("ema_extension"+stock+".csv")
+    return ema_extensions    
+
 
 def symbols_probability_list():
     symbols = getSymbols()

@@ -3,11 +3,31 @@ import random
 import pandas as pd
 import ccxt
 import time
-from statistics import *
-from data import *
 from datetime import datetime, timezone, timedelta
 from screens import *
+
+from statistics_calculations import *
+from data import *
 kucoin = ccxt.kucoinfutures({'enableRateLimit': True,'timeout': 90000})
+
+def load_data(name):
+    print("Empieza importar", name)
+    df = import_csv(name)
+    print("Acaba importar", name)
+    if not df.empty:
+        return df
+    else:    
+        if name == "flips":
+            return calculation_cycle_flips()
+        elif name == "returns":
+            return calculation_cycle_returns()
+        elif name == "current_flips":
+            print("i get to call the function")
+            return current_cycle_flips()
+        elif name[0:4] == "ema_":
+            print("Estoy aqui")
+            print(name[4:])
+            return calculation_ema_extension(name[4:])
 
 def stock_statistics(ticker):
     timeframes = getDataStock(ticker) # get data of ticker
@@ -133,15 +153,6 @@ def getTradingDataFrame(symbol, date, timeframe, candles):
     else:
         return pd.DataFrame()
 
-def rsi_tradingview(prices, period=14):
-    delta = prices.diff()
-    gain = delta.clip(lower=0)
-    loss = -delta.clip(upper=0)
-    avg_gain = gain.ewm(alpha=1/period, adjust=False).mean()
-    avg_loss = loss.ewm(alpha=1/period, adjust=False).mean()
-    rs = avg_gain / avg_loss
-    rsi = 100 - (100 / (1 + rs))
-    return rsi
 
 def build_df_HigherTimeframe(HT, df_LowerTimeframe):
     df_HigherTimeframe = df_LowerTimeframe

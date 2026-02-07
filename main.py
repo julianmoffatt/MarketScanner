@@ -1,9 +1,10 @@
 #pressure/absortion code, weekly and monthly charts
 from functions import *
 from sp500 import *
-from statistics import *
+from statistics_calculations import *
 from screens import *
 from screens_web import *
+from data import *
 
 stock = "ASTS"
 
@@ -311,7 +312,9 @@ app.layout = html.Div([
         dcc.Tab(label='Strikes probability', value='tab-4'),
         dcc.Tab(label='Rsi reversal points', value='tab-5'),
         dcc.Tab(label='Open reclaims', value='tab-6'),
-        dcc.Tab(label='Returns', value='tab-7')
+        dcc.Tab(label='Returns', value='tab-7'),
+        dcc.Tab(label='EMA extension 10 & 50', value='tab-8'),
+        dcc.Tab(label='EMA extension 100 & 200', value='tab-9')
     ]),
     # Contenedor para el gráfico
     html.Div(
@@ -319,7 +322,7 @@ app.layout = html.Div([
             id='graph',
             style={
                 'width': '100%',   # ocupa todo el ancho
-                'height': '90vh',  # casi toda la altura de la ventana
+                'height': '95vh',  # casi toda la altura de la ventana
             }
         ),
         style={
@@ -358,11 +361,8 @@ def render_content(tab):
     elif tab == 'tab-6':
         df1 = load_data("flips")
         current_flips = load_data("current_flips")
-        print("here")
-        #current_stock = getCurrentStockPos(stock)
-        print("here")
-        colours = colour_painting(df1, "flips", current_flips, None)
-        print("here")
+        current_stock = getCurrentStockPos(stock)
+        colours = colour_painting(df1, "flips", current_flips, current_stock)
         return table_fig(df1, colours)
     elif tab == 'tab-7':
         df2 = load_data("returns")
@@ -370,6 +370,12 @@ def render_content(tab):
         current_returns = pd.DataFrame()
         colours = colour_painting(df2, "returns", current_returns, current_stock_pos)
         return table_fig(df2, colours)
+    elif tab == 'tab-8':
+        df3 = load_data("ema_"+stock)
+        return screen_ema_extension_plotly(df3, stock, -1)
+    elif tab == 'tab-9':
+        df3 = load_data("ema_"+stock)
+        return screen_ema_extension_plotly(df3, stock, 1)
     else:
         pass #funciones que devuelvan Figs
 
