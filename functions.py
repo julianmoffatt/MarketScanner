@@ -17,16 +17,13 @@ def load_data(name):
     if not df.empty:
         return df
     else:    
-        if name == "flips":
-            return calculation_cycle_flips()
+        if name[0:5] == "flips":
+            return calculation_cycle_flips_all_symbols(name[6:])
+        elif name[0:12] == "currentflips":
+            return current_cycle_flips_all_symbols(name[13:])
         elif name == "returns":
             return calculation_cycle_returns()
-        elif name == "current_flips":
-            print("i get to call the function")
-            return current_cycle_flips()
-        elif name[0:4] == "ema_":
-            print("Estoy aqui")
-            print(name[4:])
+        elif name[0:3] == "ema":
             return calculation_ema_extension(name[4:])
 
 def stock_statistics(ticker):

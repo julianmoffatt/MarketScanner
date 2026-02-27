@@ -311,10 +311,13 @@ app.layout = html.Div([
         dcc.Tab(label='Monthly & Opens', value='tab-3'),
         dcc.Tab(label='Strikes probability', value='tab-4'),
         dcc.Tab(label='Rsi reversal points', value='tab-5'),
-        dcc.Tab(label='Open reclaims', value='tab-6'),
-        dcc.Tab(label='Returns', value='tab-7'),
-        dcc.Tab(label='EMA extension 10 & 50', value='tab-8'),
-        dcc.Tab(label='EMA extension 100 & 200', value='tab-9')
+        dcc.Tab(label='Opens-DAILY CLOSE', value='tab-6'),
+        dcc.Tab(label='Opens-WEEKLY CLOSE', value='tab-7'),
+        dcc.Tab(label='EMAs 10 & 20 extensions', value='tab-8'),
+        dcc.Tab(label='EMAs 50 & 200 extensions', value='tab-9'),
+        dcc.Tab(label='Returns Last Year', value='tab-10'),
+        dcc.Tab(label='Screener percentiles', value='tab-11'),
+        dcc.Tab(label='Candle deviations', value='tab-12')
     ]),
     # Contenedor para el gráfico
     html.Div(
@@ -339,7 +342,7 @@ app.layout = html.Div([
 )
 
 def render_content(tab):    
-    stock = "ASTS"
+    stock = "ETH-USD" #, "SI=F"
     timeframes = getDataStock(stock) # get data of ticker
     data = preparingData(timeframes) # prepare candles and rsi, wicks values
 
@@ -356,26 +359,38 @@ def render_content(tab):
         probabilities, colours  = calculation_StrikesProbabilities(data) # calculation strikes probabilities
         return screen_strikes_plotly(probabilities, colours)
     elif tab == 'tab-5':
-        rsiReversalZones, currentRsi = calculation_RsiReversals(data) #calculation rsi reversal points
-        return screen_rsi_plotly(rsiReversalZones, currentRsi)
+        timeframes = calculation_Rsi(data) #calculation rsi reversal points
+        return screen_rsi_plotly(timeframes)
     elif tab == 'tab-6':
-        df1 = load_data("flips")
-        current_flips = load_data("current_flips")
+        df1 = load_data("flips_daily")
+        current_flips = load_data("currentflips_daily")
         current_stock = getCurrentStockPos(stock)
         colours = colour_painting(df1, "flips", current_flips, current_stock)
-        return table_fig(df1, colours)
+        return table_fig(df1, colours)    
     elif tab == 'tab-7':
-        df2 = load_data("returns")
-        current_stock_pos = getCurrentStockPos(stock)
-        current_returns = pd.DataFrame()
-        colours = colour_painting(df2, "returns", current_returns, current_stock_pos)
-        return table_fig(df2, colours)
+        df1 = load_data("flips_weekly")
+        current_flips = load_data("currentflips_weekly")
+        current_stock = getCurrentStockPos(stock)
+        colours = colour_painting(df1, "flips", current_flips, current_stock)
+        return table_fig(df1, colours)    
     elif tab == 'tab-8':
         df3 = load_data("ema_"+stock)
         return screen_ema_extension_plotly(df3, stock, -1)
     elif tab == 'tab-9':
         df3 = load_data("ema_"+stock)
         return screen_ema_extension_plotly(df3, stock, 1)
+    elif tab == 'tab-10':
+        df2 = load_data("returns")
+        current_stock_pos = getCurrentStockPos(stock)
+        colours = colour_painting(df2, "returns", pd.DataFrame(), current_stock_pos)
+        return table_fig(df2, colours)
+    elif tab == 'tab-11':
+        longs, shorts = screener_ema_extensions()
+        return screen_screener_ema_extensions(longs, shorts)
+    elif tab == 'tab-12':
+        timeframes = calculation_average_deviation(data)
+        print("vuelvo del calculo")
+        return screen_deviations(timeframes)
     else:
         pass #funciones que devuelvan Figs
 
