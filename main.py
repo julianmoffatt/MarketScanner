@@ -306,18 +306,21 @@ app = dash.Dash(__name__)
 
 app.layout = html.Div([
     dcc.Tabs(id="tabs", value='tab-1', children=[
-        dcc.Tab(label='Daily & Opens', value='tab-1'),
-        dcc.Tab(label='Weekly & Opens', value='tab-2'),
-        dcc.Tab(label='Monthly & Opens', value='tab-3'),
-        dcc.Tab(label='Strikes probability', value='tab-4'),
-        dcc.Tab(label='Rsi reversal points', value='tab-5'),
-        dcc.Tab(label='Opens-DAILY CLOSE', value='tab-6'),
-        dcc.Tab(label='Opens-WEEKLY CLOSE', value='tab-7'),
-        dcc.Tab(label='EMAs 10 & 20 extensions', value='tab-8'),
-        dcc.Tab(label='EMAs 50 & 200 extensions', value='tab-9'),
-        dcc.Tab(label='Returns Last Year', value='tab-10'),
-        dcc.Tab(label='Screener percentiles', value='tab-11'),
-        dcc.Tab(label='Candle deviations', value='tab-12')
+        dcc.Tab(label='DAILY CHART & OPENS', value='tab-1'),
+        dcc.Tab(label='WEEKLY CHART & OPENS', value='tab-2'),
+        dcc.Tab(label='MONTHLY CHART & OPENS', value='tab-3'),
+        dcc.Tab(label='EXTENSIONS TO EMAs 10 & 20', value='tab-4'),
+        dcc.Tab(label='EXTENSIONS TO EMAs 50 & 200', value='tab-5'),
+        dcc.Tab(label='CANDLE DEVIATIONS', value='tab-6'),
+        dcc.Tab(label='CANDLE STRIKE PROBABILITIES', value='tab-7'),
+        dcc.Tab(label='RSI DISTRIBUTION', value='tab-8'),
+        dcc.Tab(label='OPEN FLIPS - DAILY CLOSE', value='tab-9'),
+        dcc.Tab(label='OPEN FLIPS - WEEKLY CLOSE', value='tab-10'),
+        dcc.Tab(label='RETURNS LAST YEAR', value='tab-11'),
+        dcc.Tab(label='EMA EXTENSIONS SCREENER', value='tab-12'),
+        dcc.Tab(label='EMAs - REVERSE BACK TO THE MEAN', value='tab-13'),
+        dcc.Tab(label='DAY LAST FLIP OF THE OPEN', value='tab-14'),
+        dcc.Tab(label='GAPS - CLOSING & TIMING', value='tab-15')
     ]),
     # Contenedor para el gráfico
     html.Div(
@@ -342,9 +345,24 @@ app.layout = html.Div([
 )
 
 def render_content(tab):    
-    stock = "ETH-USD" #, "SI=F"
+    stock = "BTC-USD" #, "SI=F"
     timeframes = getDataStock(stock) # get data of ticker
     data = preparingData(timeframes) # prepare candles and rsi, wicks values
+    data_gaps = last_X_years(data, 15)
+    df_gaps = calculation_closing_gaps(data_gaps[0])
+    percentil_10 = df_gaps["GapSize"].quantile(0.30)
+    percentil_50 = df_gaps["GapSize"].quantile(0.50)
+    percentil_90 = df_gaps["GapSize"].quantile(0.90)
+    print("PercentilSize:", percentil_10, percentil_50, percentil_90)
+    df_gaps = df_gaps[df_gaps["GapSize"] >= 0.5]
+    df_open = df_gaps[df_gaps["Status"] == "Open"]
+    df_filled = df_gaps[df_gaps["GapFilled"] == True]
+    df_closed = df_gaps[df_gaps["Status"] == "Closed"]
+    print("Total gaps:", len(df_gaps), "Average Size:", round(df_gaps["GapSize"].mean(), 2))
+    print("Partially filled gaps:", len(df_filled), "Average Size:", round(df_filled["GapSize"].mean(), 2))
+    print("Closed gaps:", len(df_closed), "Average Size:", round(df_closed["GapSize"].mean(), 2))
+    print("Open gaps:", len(df_open), "Average Size:", round(df_open["GapSize"].mean(), 2))
+
 
     if tab == 'tab-1':
         fig = screen_daily_chart(data)
@@ -356,41 +374,59 @@ def render_content(tab):
         fig = screen_monthly_chart(data)
         return fig
     elif tab == 'tab-4':
+        df3 = load_data("ema_"+stock)
+        return screen_ema_extension_plotly(df3, stock, -1)
+    elif tab == 'tab-5':
+        df3 = load_data("ema_"+stock)
+        return screen_ema_extension_plotly(df3, stock, 1)
+    elif tab == 'tab-6':
+        timeframes = calculation_average_deviation(data)
+        print("vuelvo del calculo")
+        return screen_deviations(timeframes, stock)
+    elif tab == 'tab-7':
         probabilities, colours  = calculation_StrikesProbabilities(data) # calculation strikes probabilities
         return screen_strikes_plotly(probabilities, colours)
-    elif tab == 'tab-5':
+    elif tab == 'tab-8':
         timeframes = calculation_Rsi(data) #calculation rsi reversal points
         return screen_rsi_plotly(timeframes)
-    elif tab == 'tab-6':
+    elif tab == 'tab-9':
         df1 = load_data("flips_daily")
         current_flips = load_data("currentflips_daily")
         current_stock = getCurrentStockPos(stock)
         colours = colour_painting(df1, "flips", current_flips, current_stock)
         return table_fig(df1, colours)    
-    elif tab == 'tab-7':
+    elif tab == 'tab-10':
         df1 = load_data("flips_weekly")
         current_flips = load_data("currentflips_weekly")
         current_stock = getCurrentStockPos(stock)
         colours = colour_painting(df1, "flips", current_flips, current_stock)
         return table_fig(df1, colours)    
-    elif tab == 'tab-8':
-        df3 = load_data("ema_"+stock)
-        return screen_ema_extension_plotly(df3, stock, -1)
-    elif tab == 'tab-9':
-        df3 = load_data("ema_"+stock)
-        return screen_ema_extension_plotly(df3, stock, 1)
-    elif tab == 'tab-10':
+    elif tab == 'tab-11':
         df2 = load_data("returns")
         current_stock_pos = getCurrentStockPos(stock)
         colours = colour_painting(df2, "returns", pd.DataFrame(), current_stock_pos)
         return table_fig(df2, colours)
-    elif tab == 'tab-11':
+    elif tab == 'tab-12':
         longs, shorts = screener_ema_extensions()
         return screen_screener_ema_extensions(longs, shorts)
-    elif tab == 'tab-12':
-        timeframes = calculation_average_deviation(data)
-        print("vuelvo del calculo")
-        return screen_deviations(timeframes)
+    elif tab == 'tab-13':
+        timeframes = calculation_retest_bands(data)
+        print("Vuelve del calculo")
+        print(timeframes)
+        return screen_ema_retests(timeframes)
+    elif tab == 'tab-14':
+        calculation_cycle_flips_all_symbols("daily", [stock])
+        calculation_cycle_flips_all_symbols("weekly", [stock])
+        names = ["last_daily_flip_on_" + x + "_" + stock for x in ["weekly", "monthly", "quarterly"]]
+        data = [load_data(names[x]) for x in range(0,3)] 
+        names = ["last_weekly_flip_on_" + x + "_" + stock for x in ["monthly", "quarterly", "yearly"]]
+        data = data + [load_data(names[x]) for x in range(0,3)] 
+        print("Tengo data")
+        print(data)
+        return screen_last_flip_open(data, stock)
+    elif tab == 'tab-15':
+        df_tab_15 = calculation_closing_gaps_all_symbols()
+        return table_fig_variation(df_tab_15)
     else:
         pass #funciones que devuelvan Figs
 

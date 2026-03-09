@@ -2,6 +2,7 @@ import numpy as np
 from functions import * 
 import pandas as pd
 from data import *
+from scipy import stats
 
 # Calculation of strikes probabilities
 def calculation_StrikesProbabilities(data):
@@ -101,23 +102,18 @@ def calculation_Rsi(data):
 
    
 # calculations of flips of a dataframe data around a given open
-def cycle_dynamics_calculation(df, open):
-    lenght_cycle = (df.index[-1]-df.index[0]).days
-    print(lenght_cycle)
+def cycle_dynamics_calculation(df, open):  
     flips, lastFlip, side = 0, 1, 0
     sides = {1:0, 0:1}
     margin = 0
-
     if df.iloc[0]["Close"] >= open:
         side = 1
     else:
         side = 0
-
     for k in range (1, len(df)):
         margin = (open * (df.iloc[k]["Volatility_Rolling"] * 0.075))
         close_fixed_bull = df.iloc[k]["Close"] - margin
         close_fixed_bear = df.iloc[k]["Close"] + margin
-
         if ((close_fixed_bull > open) and (side == 0)) or ((close_fixed_bear < open) and (side == 1)):
             side = sides[side]
             flips = flips + 1
@@ -129,32 +125,23 @@ def cycle_dynamics_calculation(df, open):
 
 
 def cycle_dynamics(data, lower_timeframe):
-    print(len(data), "---------")
-    print(1111)
     parameters = []
     if lower_timeframe == "daily":
         parameters = [pd.Timedelta(days=7), pd.offsets.MonthBegin(1), pd.offsets.MonthBegin(3)]
     elif lower_timeframe == "weekly":
         parameters = [pd.offsets.MonthBegin(1), pd.offsets.MonthBegin(3), pd.offsets.MonthBegin(12)]
-    print(1111)
     timeframes_cycles = []
     LT = data[0][14:].copy()
     end = []
-    print(1)
     end.append(pd.to_datetime((data[1].index[-1] + parameters[0]), utc=True))
-    print(2)
     end.append(pd.to_datetime((data[2].index[-1] + parameters[1]), utc=True))
-    print(2)
     end.append(pd.to_datetime((data[3].index[-1] + parameters[2]), utc=True))
     timeframe = ["WEEKLY", "MONTHLY", "QUARTERLY"]
-    print(1111)
 
-    print("start dynamics for")
     for i in range (1, len(data)):
         HT = data[i].copy()
         LT = LT[LT.index < end[i-1]]
         cycle = pd.DataFrame(columns=["Date", "Open", "Flips", "LastFlip"])
-        print("start dynamics for 2")
         for x in range(0, len(HT)-1):
             df = LT[(LT.index >= HT.index[x]) & (LT.index < HT.index[x+1])]
             if df.empty:
@@ -165,19 +152,16 @@ def cycle_dynamics(data, lower_timeframe):
             cycle.loc[len(cycle)] = [HT.index[x], round(HT.iloc[x]["Open"],1), params[0], params[1]]
 
         df = LT[(LT.index >= HT.index[-1])]
-
         if not df.empty:
             params = cycle_dynamics_calculation(df, HT.iloc[-1]["Open"])
             cycle.loc[len(cycle)] = [HT.index[-1], round(HT.iloc[-1]["Open"],1), params[0], params[1]]
 
         cycle.set_index("Date", inplace=True)
         timeframes_cycles.append(cycle)
-
     return timeframes_cycles
 
 
-def calculation_cycle_flips_all_symbols(lower_timeframe):
-    symbols = getSymbols()
+def calculation_cycle_flips_all_symbols(lower_timeframe, symbols):
     timeframes_name = ["weekly", "monthly", "quarterly"]
     if lower_timeframe == "daily":
         timeframes_name = ["weekly", "monthly", "quarterly"]
@@ -189,38 +173,53 @@ def calculation_cycle_flips_all_symbols(lower_timeframe):
         columns.append(str(i) + " " + timeframes_name[0] + "_F")
     for i in range (0,5):
         columns.append(str(i) + " " + timeframes_name[1] + "_F")
+    columns.append(timeframes_name[1] + "_p50") 
     for i in range (0,5):
         columns.append(str(i) + " " + timeframes_name[2] + "_F")
-    
+    columns.append(timeframes_name[2] + "_p50") 
     df = pd.DataFrame(columns=columns)
     for symbol in symbols:
         print(symbol)
         aux_timeframes = getDataStock(symbol) # get data of ticker        
-        timeframes = last_X_years(aux_timeframes, 15)
-        timeframes = create_hightimeframes(timeframes, lower_timeframe)
+        aux_timeframes_2= last_X_years(aux_timeframes, 25)
+        timeframes = create_hightimeframes(aux_timeframes_2, lower_timeframe)
         data_candles = preparingData(timeframes) # prepare candles and rsi, wicks values
-        print("to cycle dynamics")
         dfs = cycle_dynamics(data_candles, lower_timeframe)
-        print("i got back from cycle dynamics")
+        print("comeback from cycle dynamics")
         counts_A = dfs[0]["Flips"].value_counts().reindex(range(4), fill_value=0).to_dict()
         counts_B = dfs[1]["Flips"].value_counts().reindex(range(5), fill_value=0).to_dict()
         counts_C = dfs[2]["Flips"].value_counts().reindex(range(5), fill_value=0).to_dict()
         total_A = sum(counts_A.values())
         total_B = sum(counts_B.values())
         total_C = sum(counts_C.values())
-        df.loc[len(df)] = [symbol, round((counts_A[0]/total_A)*100,1), round((counts_A[1]/total_A)*100,1), round((counts_A[2]/total_A)*100,1), round((counts_A[3]/total_A)*100,1), round((counts_B[0]/total_B)*100,1), round((counts_B[1]/total_B)*100,1), round((counts_B[2]/total_B)*100,1), round((counts_B[3]/total_B)*100,1), round((counts_B[4]/total_B)*100,1), round((counts_C[0]/total_C)*100,1), round((counts_C[1]/total_C)*100,1), round((counts_C[2]/total_C)*100,1), round((counts_C[3]/total_C)*100,1), round((counts_C[4]/total_C)*100,1)]
-    name_csv = "flips_" + lower_timeframe + ".csv"
-    df.to_csv(name_csv)
+        #--------------------------------------------------------------------------------------------
+        if len(symbols) == 1:
+            for a in range (0,3):
+                name = "last_" + lower_timeframe +"_flip_on_"+timeframes_name[a] + "_" +symbol+ ".csv"
+                dfs[a]["LastFlip"].to_csv(name)
+                #name = lower_timeframe +"_flips_on_"+timeframes_name[a] + "_" +symbol+ ".csv"
+                #dfs[a]["Flips"].to_csv(name)
+        #---------------------------------------------------------------------------------------------
+        p_01 = round(dfs[1]["LastFlip"].quantile(0.50), 1)
+        p_02 = round(dfs[2]["LastFlip"].quantile(0.50), 1)
+        try:
+            df.loc[len(df)] = [symbol, round((counts_A[0]/total_A)*100,1), round((counts_A[1]/total_A)*100,1), round((counts_A[2]/total_A)*100,1), round((counts_A[3]/total_A)*100,1), round((counts_B[0]/total_B)*100,1), round((counts_B[1]/total_B)*100,1), round((counts_B[2]/total_B)*100,1), round((counts_B[3]/total_B)*100,1), round((counts_B[4]/total_B)*100,1), p_01, round((counts_C[0]/total_C)*100,1), round((counts_C[1]/total_C)*100,1), round((counts_C[2]/total_C)*100,1), round((counts_C[3]/total_C)*100,1), round((counts_C[4]/total_C)*100,1), p_02]
+        except Exception as e:
+            print(e)
+        print("end for", symbol)
+    if len(symbols) > 1:
+        name_csv = "flips_" + lower_timeframe + ".csv"
+        df.to_csv(name_csv)
     return df
 
 
 def current_cycle_flips_all_symbols(lower_timeframe):
+    print("start")
     timeframes_name = ["weekly", "monthly", "quarterly"]
     if lower_timeframe == "daily":
         timeframes_name = ["weekly", "monthly", "quarterly"]
     elif lower_timeframe == "weekly":
         timeframes_name = ["monthly", "quarterly", "yearly"]
-    
     symbols = getSymbols()
     rows = []
     for symbol in symbols:
@@ -231,7 +230,6 @@ def current_cycle_flips_all_symbols(lower_timeframe):
         data_candles = preparingData(timeframes) # prepare candles and rsi, wicks values
         symbol_flips = []
         row = {}
-        print("start for loop")
         for i in range (1,len(data_candles)):
             lowerTimeframeCandles = data_candles[0][data_candles[0].index >= data_candles[i].index[-1]]
             open_price = data_candles[i].iloc[-1]["Open"]
@@ -239,21 +237,15 @@ def current_cycle_flips_all_symbols(lower_timeframe):
             if flips > 4:
                 flips = 4 #represent a 5+ or a cell with the actual number
             symbol_flips.append([flips, lastFlip])
-        print("gets to make the row")
         row = {"symbol": symbol}
-        print(1)
         for i, tf in enumerate(timeframes_name):
-            print(2)
             row[f"{tf}Flip"] = symbol_flips[i][0]
-            print(3)
             row[f"{tf}LastFlip"] = symbol_flips[i][1]
-            print(4)
-        print("ends the row")
         rows.append(row)   
     df = pd.DataFrame(rows)
     name_csv = "currentflips_" + lower_timeframe + ".csv"
     df.to_csv(name_csv)    
-    print("i return the csv")
+    print("i return the csv of current flips")
     return df 
 
 
@@ -331,7 +323,6 @@ def calculation_ema_extension (stock):
     return ema_extensions    
 
 
-from scipy import stats
 def screener_ema_extensions():
     #symbols_sp500 = get_sp500_symbols()
     #symbols_crypto = get_crypto_symbols()
@@ -364,13 +355,8 @@ def screener_ema_extensions():
         if num == 100:
             break
     df = pd.DataFrame(rows)
-    # Lado Izquierdo: Buscamos el "Pánico" (Longs)
-    # Priorizamos los que están por debajo de 50 en Semanal Y bajísimos en Diario
-    longs_df = df[(df['P WEEKLY EMA 10'] < 70) & (df['P WEEKLY EMA 20'] < 70) & (df['P DAILY EMA 10'] < 40)].sort_values(by='P DAILY EMA 10', ascending=True)
-    # Lado Derecho: Buscamos la "Euforia" (Shorts)
-    # Priorizamos los que están por encima de 50 en Semanal Y altísimos en Diario
-    shorts_df = df[(df['P WEEKLY EMA 10'] > 35) & (df['P WEEKLY EMA 20'] > 35) & (df['P DAILY EMA 10'] > 60)].sort_values(by='P DAILY EMA 10', ascending=False)
-    #guardar datos after hours
+    longs_df = df[(df['P DAILY EMA 10'] < 60) & (df['P DAILY EMA 20'] < 60) & (df['P WEEKLY EMA 10'] < 70) & (df['P WEEKLY EMA 20'] < 70)].sort_values(by='P DAILY EMA 10', ascending=True)
+    shorts_df = df[(df['P DAILY EMA 10'] > 60) & (df['P DAILY EMA 20'] > 60) & (df['P WEEKLY EMA 10'] > 40) & (df['P WEEKLY EMA 20'] > 40)].sort_values(by='P DAILY EMA 10', ascending=False)
     return longs_df, shorts_df
 
 
@@ -383,99 +369,113 @@ def calculation_average_deviation(data):
     return timeframes 
 
 
-def symbols_probability_list():
+def calculation_retest_bands(data):
+    timeframes = []
+    cont = 0
+    for df in data:
+        cont = cont + 1
+        rows = []
+        k = 0
+        df["EMA_12"] = df["Close"].ewm(span=12, adjust=False).mean()
+        df["EMA_21"] = df["Close"].ewm(span=21, adjust=False).mean()
+        df = df[12:]
+        tolerance = 0.0025 * cont
+        ema_top = df[['EMA_12', 'EMA_21']].max(axis=1) * (1 + tolerance)
+        ema_bot = df[['EMA_21', 'EMA_12']].min(axis=1) * (1 - tolerance)
+
+        for i in range(len(df)):
+            top_val = ema_top.iloc[i] * (1 + tolerance)
+            bot_val = ema_bot.iloc[i] * (1 - tolerance)
+            try:
+                is_away = (df['Low'].iloc[i] > top_val) or (df['High'].iloc[i] < bot_val)
+            except Exception as e:
+                print(e)
+
+            if is_away:
+                k += 1
+            else:
+                if k > 0:
+                    rows.append({"Date": df.index[i], "TimeAway": k})
+                k = 0
+        # Para capturar la racha actual si todavía sigue lejos
+        rows.append({"Date": df.index[-1], "TimeAway": k})  
+        timeframes.append(pd.DataFrame(rows))
+    return timeframes
+
+
+def calculation_closing_gaps(df):
+    try:
+        gaps = []
+        for i in range (1, len(df)):
+            # LOGICA QUE DETECTA CIERRE DE GAPS
+            for gap in gaps:
+                if gap["Status"] == "Open":
+                    if (df["Low"].iloc[i] <= gap["GapLow"]) and (df["High"].iloc[i] >= gap["GapHigh"]): #AÑADIR MARGEN DE ERROR (NO ES PERFECTO UN CIERRE DE GAP)
+                        gap["GapFilled"] = True
+                        gap["Status"] = "Closed"
+                        gap["DaysOpen"] = (df.index[i] - gap["Date"]).days
+                    elif (df["Low"].iloc[i] >= gap["GapLow"]) and (df["High"].iloc[i] <= gap["GapHigh"]):
+                        gap["GapFilled"] = True
+                        gap["GapHigh"] = df["High"].iloc[i]
+                        gap["GapLow"] = df["Low"].iloc[i]
+                        if gap["FirstRetest"] == False: 
+                            gap["FirstRetest"] == True 
+                            gap["DaysOpen"] = (df.index[i] - gap["Date"]).days
+                    elif (df["Low"].iloc[i] <= gap["GapLow"]) and (df["High"].iloc[i] > gap["GapLow"]) and (df["High"].iloc[i] > gap["GapHigh"]):
+                        gap["GapHigh"] = df["High"].iloc[i]
+                        gap["GapFilled"] = True
+                        if gap["FirstRetest"] == False: 
+                            gap["FirstRetest"] == True 
+                            gap["DaysOpen"] = (df.index[i] - gap["Date"]).days
+                    elif (df["High"].iloc[i] >= gap["GapHigh"]) and (df["Low"].iloc[i] > gap["GapLow"]) and (df["Low"].iloc[i] < gap["GapHigh"]):
+                        gap["GapLow"] = df["Low"].iloc[i]
+                        gap["GapFilled"] = True
+                        if gap["FirstRetest"] == False: 
+                            gap["FirstRetest"] == True 
+                            gap["DaysOpen"] = (df.index[i] - gap["Date"]).days
+
+            # LOGICA QUE DETECTA Y GUARDA UN GAP
+            gap_high, gap_low = 0, 0
+            if (df["Low"].iloc[i] > df["Close"].iloc[i-1]) or (df["High"].iloc[i] < df["Close"].iloc[i-1]):
+                gapSize = 0
+                if (df["Low"].iloc[i] > df["Close"].iloc[i-1]):
+                    gapSize = (round(df["Low"].iloc[i] / df["Close"].iloc[i-1], 3)-1) * 100
+                    gap_high = df["Low"].iloc[i]
+                    gap_low = df["Close"].iloc[i-1]
+                else:
+                    gapSize = abs(round(df["High"].iloc[i] / df["Close"].iloc[i-1], 3) - 1) * 100
+                    gap_high = df["Close"].iloc[i-1]
+                    gap_low = df["High"].iloc[i]
+                gaps.append({"Date": df.index[i], "Status": "Open", "DaysOpen": -1, "GapSize": gapSize, "GapHigh": gap_high, "GapLow": gap_low, "GapFilled": False, "FirstRetest": False})
+        for gap in gaps:
+            if gap["Status"] == "Open":
+                gap["DaysOpen"] = (df.index[-1] - gap["Date"]).days
+        return pd.DataFrame(gaps) 
+    except Exception as e:
+        print("The exception was:", e)
+
+def calculation_closing_gaps_all_symbols():
     symbols = getSymbols()
+    gaps_study = pd.DataFrame(columns=["Symbol", "Total Gaps", "Filled Ratio", "Closed Ratio", "Days Open p10", "Days Open p50", "Days Open p90"])
+
     for symbol in symbols:
-        timeframes = getDataStock(symbol) # get data of ticker 
-        data_candles = preparingData(timeframes)
-        probabilities, colours  = calculation_StrikesProbabilities(data_candles)
+        print("Processing gaps", symbol)
+        aux_timeframes = getDataStock(symbol) # get data of ticker  
+        timeframes = preparingData([aux_timeframes[0]])
+        data = last_X_years(timeframes, 15)
+        df = calculation_closing_gaps(data[0])
+        df = df[df["GapSize"] >= 2]
+        df_filled = df[df["GapFilled"] == True]
+        totalGaps = len(df)
+        filledGaps = len(df_filled)
+        closedGaps = len(df[df["Status"] == "Closed"])
+        percentil_10 = round(df_filled["DaysOpen"].quantile(0.1), 2)
+        percentil_50 = round(df_filled["DaysOpen"].quantile(0.5), 2)
+        percentil_90 = round(df_filled["DaysOpen"].quantile(0.9), 2)
+        gaps_study.loc[len(gaps_study)] = [symbol, totalGaps, round(filledGaps/totalGaps, 2), round(closedGaps/totalGaps, 2), percentil_10, percentil_50, percentil_90] 
+    
+    return gaps_study
+        
 
+        
 
-
-
-
-
-
-
-
-## Calculo de los reversal points del rsi para las graficas
-#def calculation_RsiReversals(data): 
-#    localExtremes = []
-#    currentRsi = []
-#    parameters = [0, 0, 0] #daily, weekly, montly (umbral highs, mid confirmation, umbral low)
-#    cont = 0
-#    for df in data:
-#        lag = [70, 500, 1800]
-#        df = df[df.index > df.index[0]+pd.Timedelta(days=lag[cont])]
-#        percentil_25 = np.percentile(df["rsi"], 25)
-#        percentil_50 = np.percentile(df["rsi"], 50)
-#        percentil_75 = np.percentile(df["rsi"], 75)
-#        parameters[0] = percentil_75
-#        parameters[1] = percentil_50
-#        parameters[2] = percentil_25
-#        print("-------------------------------------------------------------------------------------------------------------")
-#        state, value = 0, 50
-#        highs, lows = [], []
-#        lecture = False
-#        date = df.index[0]
-#        for i in range (0, len(df)):
-#            if df.iloc[i]["rsi"] >= parameters[0]:
-#                if not lecture:
-#                   state = 1
-#                   lecture = True
-#                   value = df.iloc[i]["rsi"]
-#                   date = df.index[i]
-#                else:
-#                    if df.iloc[i]["rsi"] > value:
-#                        value = df.iloc[i]["rsi"]
-#                        date = df.index[i]
-#            elif df.iloc[i]["rsi"] <= parameters[2]:
-#                if not lecture:
-#                   state = 2
-#                   lecture = True
-#                   value = df.iloc[i]["rsi"]
-#                   date = df.index[i]
-#                else:
-#                    if df.iloc[i]["rsi"] < value:
-#                        value = df.iloc[i]["rsi"]
-#                        date = df.index[i]
-#
-#            elif df.iloc[i]["rsi"] > parameters[2] and df.iloc[i]["rsi"] < parameters[0] and lecture and state > 0:
-#                if state == 1 and df.iloc[i]["rsi"] <= parameters[1]:
-#                    if value >= parameters[0]:
-#                        highs.append({date: value})
-#                    state = 0
-#                    lecture = False
-#                    value = parameters[1]
-#                elif state == 2 and df.iloc[i]["rsi"] >= parameters[1]:
-#                    if value <= parameters[2]:
-#                        lows.append({date: value})
-#                    state = 0
-#                    lecture = False
-#                    value = parameters[1]
-#        currentRsi.append({ df.index[-1] : df.iloc[-1]["rsi"]})
-#        aux_data = highs + lows
-#        data = [d for d in aux_data if not (isinstance(list(d.keys())[0], float) and np.isnan(list(d.keys())[0]))]
-#        localExtremes.append(data)
-#        cont = cont + 1    
-#    return localExtremes, currentRsi
-
-
-
-
-
-
-
-
-
-
-
-                
-                
-                
-               
-                
-      
-   
-               
- 

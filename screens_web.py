@@ -3,6 +3,10 @@ import plotly.graph_objects as go
 from plotly.subplots import make_subplots
 from statistics_calculations import *
 
+def title_stock(fig, stock):
+    fig.update_layout(margin=dict(l=30, r=30, t=75, b=30), title={'text': stock,'x': 0.5,'y': 0.98,'xanchor': 'center','yanchor': 'top', 'font': {'size': 20, 'color': 'purple'}})
+    return fig
+
 def margin_right(fig, df):
     fig.update_layout(xaxis_rangeslider_visible=False)
     RIGHT_PADDING_BARS = 35 # ---- Right-side padding ----
@@ -211,14 +215,7 @@ def screen_strikes_plotly(probabilities, colours):
         fig.update_xaxes(showticklabels=False, row=1, col=i + 1)
 
     # ---------- Layout ----------
-    fig.update_layout(
-        height=1000,
-        width=None,
-        plot_bgcolor="white",
-        paper_bgcolor="white",
-        margin=dict(l=20, r=20, t=30, b=20)
-    )
-    fig.update_layout(margin=dict(l=30, r=30, t=75, b=30))
+    fig.update_layout(height=1000, width=None, plot_bgcolor="white", paper_bgcolor="white", margin=dict(l=30, r=30, t=75, b=30))
     return fig
 
 
@@ -226,11 +223,9 @@ def screen_rsi_plotly(data):
     timeframes = ["Daily", "Weekly", "Monthly"]
     fig = make_subplots(rows=2, cols=3, vertical_spacing=0.10, horizontal_spacing=0.04, subplot_titles=["DAILY RSI","WEEKLY RSI","MONTHLY RSI"])
 
-    # ---------- RSI charts ----------
     for i in range(len(data)):
         df = data[i]
 
-        # RSI scatter
         fig.add_trace(
             go.Scatter(x=df.index, y=df["rsi"], mode="markers", marker=dict(color="steelblue", size=5), showlegend=False),
             row=1,
@@ -339,58 +334,36 @@ def screen_ema_extension_plotly(ema_extensions, stock, k):
             fig.add_hline(y=p95, line_color="black", opacity=0.7, row=x, col=i + 1)
             fig.add_hline(y=0, line_color="purple", opacity=0.6, row=x, col=i + 1)
             fig.add_hline(y=p05, line_color="black", opacity=0.7, row=x, col=i + 1)
-
-        fig.update_layout(margin=dict(l=30, r=30, t=75, b=30), title={
-        'text': stock,
-        'x': 0.5,               # Posición horizontal al 50% (centro)
-        'y': 0.98,
-        'xanchor': 'center',    # El punto de anclaje del texto es su centro
-        'yanchor': 'top',       # Anclaje superior para que no pise los gráficos
-        'font': {'size': 20, 'color': 'purple'} # Ajusta el tamaño y color según tu tema
-        })
+    fig = title_stock(fig, stock)
     return fig
 
 
 def screen_screener_ema_extensions(longs, shorts):
-    fig = make_subplots(
-        rows=1, cols=2, 
-        vertical_spacing=0.10, 
-        horizontal_spacing=0.04, 
-        subplot_titles=["LONG SET-UPS", "SHORT SET-UPS"],
-        specs=[[{"type": "domain"}, {"type": "domain"}]]
-    )
+    fig = make_subplots(rows=1, cols=2, vertical_spacing=0.10, horizontal_spacing=0.04, subplot_titles=["LONG SET-UPS", "SHORT SET-UPS"], specs=[[{"type": "domain"}, {"type": "domain"}]])
 
-    # Generamos las figuras base (asumiendo que devuelven go.Figure)
     fig_long_base = table_fig_variation(longs)
     fig_shorts_base = table_fig_variation(shorts)
 
-    # Extraemos el "trace" (la tabla pura) y la posicionamos
     fig.add_trace(fig_long_base.data[0], row=1, col=1)
     fig.add_trace(fig_shorts_base.data[0], row=1, col=2)
 
-    # Ajustes estéticos finales para que se vea profesional
-    fig.update_layout(
-        height=800, 
-        template="plotly_white", 
-        title_text="Comando de Momentum: Percentiles EMA",
-        title_x=0.5
-    )    
+    fig.update_layout(height=800, template="plotly_white", title_text="Percentiles EMA Set-Ups", title_x=0.5)    
     return fig
 
 
-def screen_deviations(data):
+def screen_deviations(data, stock):
     fig = make_subplots(
         rows=2, cols=3, 
         vertical_spacing=0.12, 
         horizontal_spacing=0.04, 
         subplot_titles=["DAILY DEVIATIONS (GREEN)", "WEEKLY DEVIATIONS (GREEN)", "MONTHLY DEVIATIONS (GREEN)", "DAILY DEVIATIONS (RED)", "WEEKLY DEVIATIONS (RED)", "MONTHLY DEVIATIONS (RED)"])
-    
+    extra_days = 200
     for i in range(len(data)):
         df = data[i]
         df_green = df[df["type"] == "Green"]
         df_red = df[df["type"] == "Red"]
         k = 0
-        current_time = df.index[-1]
+        current_time = df.index[-1] + pd.Timedelta(days=extra_days)
         candle = df.iloc[-1]
         current_value = [((candle['Open'] - candle['Low']) / candle['Open'])*100, ((candle['High'] - candle['Open']) / candle['Open'])*100]
         cont = 0
@@ -398,43 +371,125 @@ def screen_deviations(data):
         for df_for in [df_green, df_red]:      
             if current_value[cont] < df_for["Deviation"].quantile(0.90):
                 ext = df_for["Deviation"]
-                low, high = np.percentile(ext, [0, 95])
+                low, high = np.percentile(ext, [0.5, 96])
                 y_range = np.clip(ext, low, high)
             elif current_value[cont] >= df_for["Deviation"].quantile(0.90):
                 ext = df_for["Deviation"]
-                low, high = np.percentile(ext, [0, 100])
+                low, high = np.percentile(ext, [0.5, 99.5])
                 y_range = np.clip(ext, low, high)
             
-            fig.add_trace(go.Scatter(x=df_for.index, y=y_range, mode="markers", marker=dict(color="#66b2ff", size=5), showlegend=False),
+            fig.add_trace(go.Scatter(x=df_for.index, y=y_range, mode="markers", marker=dict(color="steelblue", size=5), showlegend=False),
                 row=1+k, col=i + 1) 
+            p95 = df_for["Deviation"].quantile(0.95)
             p90 = df_for["Deviation"].quantile(0.90)
             p80 = df_for["Deviation"].quantile(0.80)
             p50 = df_for["Deviation"].quantile(0.50)
             p20 = df_for["Deviation"].quantile(0.20)
             p10 = df_for["Deviation"].quantile(0.10)
-            fig.add_hline(y=p90, line_color="black", line_width=3, row=1+k, col=i + 1)
-            fig.add_hline(y=p80, line_color="black", line_width=3, row=1+k, col=i + 1,
+            fig.add_hline(y=p95, line_color="white", line_width=1, row=1+k, col=i + 1,
+                annotation_text="  p95",
+                annotation_position="top right",   
+                annotation_font_size=13,
+                annotation_font_color="black")
+            fig.add_hline(y=p90, line_color="red", line_width=2, row=1+k, col=i + 1)
+            fig.add_hline(y=p80, line_color="red", line_width=2, row=1+k, col=i + 1,
                 annotation_text=f" {p80:.2f}%",
                 annotation_position="right",   
                 annotation_font_size=13,
                 annotation_font_color="black")
-            fig.add_hline(y=p50, line_color="black", line_width=6, row=1+k, col=i + 1,
+            fig.add_hline(y=p50, line_color="black", line_width=5, row=1+k, col=i + 1,
                 annotation_text=f" {p50:.2f}%",
                 annotation_position="right",   
                 annotation_font_size=13,
                 annotation_font_color="black")
-            fig.add_hline(y=p20, line_color="black", line_width=3, row=1+k, col=i + 1,
+            fig.add_hline(y=p20, line_color="green", line_width=2, row=1+k, col=i + 1,
                 annotation_text=f" {p20:.2f}%",
                 annotation_position="right", 
                 annotation_font_size=13,
                 annotation_font_color="black")
-            fig.add_hline(y=p10, line_color="black", line_width=3, row=1+k, col=i + 1) 
-            fig.add_hline(y=current_value[cont], line_color="#E9B300", line_dash = 'dot', line_width=4, row=1+k, col=i + 1)
+            fig.add_hline(y=p10, line_color="green", line_width=2, row=1+k, col=i + 1) 
+            fig.add_hline(y=current_value[cont], line_color="#E9B300", line_dash = 'dot', line_width=4, row=1+k, col=i + 1,
+                annotation_text=f" {current_value[cont]:.2f}%",
+                annotation_position="right", 
+                annotation_font_size=13,
+                annotation_font_color="blue")
             fig.add_trace(go.Scatter(x=[current_time], y=[current_value[cont]], mode="markers", marker=dict(color="#FFC400", size=14), showlegend=False), row=1+k, col=i + 1)  
             k = k + 1
             cont = cont + 1
 
-    fig.update_layout(margin=dict(l=30, r=60, t=75, b=30), plot_bgcolor="#FFFEB7", paper_bgcolor="white")
+    fig = title_stock(fig, stock)
+    return fig
+
+
+def screen_ema_retests(data):
+    fig = make_subplots(rows=2, cols=3, vertical_spacing=0.10, horizontal_spacing=0.04, subplot_titles=["DAILY BANDS RETEST","WEEKLY BANDS RETEST","MONTHLY BANDS RETEST"])
+
+    for i in range(len(data)):
+        l = len(data[i])-1
+        df = data[i][0:l]
+        current_time = data[i]["Date"].iloc[-1]
+        current_value = data[i]["TimeAway"].iloc[-1]
+        fig.add_trace(
+            go.Scatter(x=df["Date"], y=df["TimeAway"], mode="markers", marker=dict(color="steelblue", size=8), showlegend=False),
+            row=1,
+            col=i + 1
+        )
+        percentil_name = ["p95", "p80", "p50", "p20"]
+        percentil_color = ["black", "black", "purple", "black"]
+        percentil_value = [0.95, 0.80, 0.50, 0.20]
+        percentil_location = ["top right", "top right", "top right", "bottom right"]
+        for p in range (0, len(percentil_value)):
+            percentil = df["TimeAway"].quantile(percentil_value[p])
+            fig.add_hline(line_width=2, row=1, col = i+1, annotation_position=percentil_location[p], annotation_font_size=13, annotation_font_color="black",
+                y=percentil,  
+                line_color=percentil_color[p], 
+                annotation_text=percentil_name[p])   
+        fig.add_hline(y=current_value, line_color="#E9B300", line_dash = 'dot', line_width=4, row=1, col=i + 1,
+                annotation_text=f" {current_value:.0f}",
+                annotation_position="right", 
+                annotation_font_size=13,
+                annotation_font_color="blue")
+        fig.add_trace(go.Scatter(x=[current_time], y=[current_value], mode="markers", marker=dict(color="#FFC400", size=14), showlegend=False), row=1, col=i + 1)  
+               
+    fig.update_layout(margin=dict(l=40, r=40, t=75, b=30))
+    return fig
+
+
+def screen_last_flip_open(data, stock):
+    try:
+        fig = make_subplots(rows=2, cols=3, vertical_spacing=0.10, horizontal_spacing=0.04, subplot_titles=["Last Daily Flip on Weekly Open","Last Daily Flip on Monthly Open","Last Daily Flip on Quarterly Open", "Last Weekly Flip on Monthly Open","Last Weekly Flip on Quarterly Open", "Last Weekly Flip on Yearly Open"])
+        r = 1
+        c = 1
+        for i in range(len(data)):
+            if i == 3:
+                c = 1
+                r = 2
+            l = len(data[i])-1
+            df = data[i][0:l]
+            current_time = data[i].index[-1]
+            current_value = data[i]["LastFlip"].iloc[-1]
+            fig.add_trace(
+                go.Scatter(x=df.index, y=df["LastFlip"], mode="markers", marker=dict(color="steelblue", size=10), showlegend=False),
+                row=r,
+                col=c
+            )
+            percentil_name = ["p95", "p80", "p50", "p20"]
+            percentil_color = ["black", "black", "purple", "black"]
+            percentil_value = [0.95, 0.80, 0.50, 0.20]
+            percentil_location = ["top right", "top right", "top right", "bottom right"]
+            for p in range (0, len(percentil_value)):
+                percentil = df["LastFlip"].quantile(percentil_value[p])
+                fig.add_hline(line_width=2, row=r, col = c, annotation_position=percentil_location[p], annotation_font_size=13, annotation_font_color="black",
+                    y=percentil,  
+                    line_color=percentil_color[p], 
+                    annotation_text=percentil_name[p])
+    
+            fig.add_hline(y=current_value, line_color="#E9B300", line_dash = 'dot', line_width=4, row=r, col = c, annotation_text=f" {current_value:.0f}", annotation_position="right", annotation_font_size=13, annotation_font_color="blue")
+            fig.add_trace(go.Scatter(x=[current_time], y=[current_value], mode="markers", marker=dict(color="#FFC400", size=14), showlegend=False), row=r, col = c)  
+            c = c + 1
+        fig = title_stock(fig, stock)
+    except Exception as e:
+        print(e)
     return fig
 
 
@@ -449,6 +504,8 @@ def colour_painting(df, name, current_colours, current_stock_pos):
                 colours.append(["lightgreen"] * len(df))
             elif i <= 9:
                 colours.append(["lightblue"] * len(df))
+            elif i == 10 or i == 16: 
+                colours.append(["gray"] * len(df))
             else:
                 colours.append(["lightgreen"] * len(df))
     elif name == "returns":
@@ -480,7 +537,7 @@ def colour_painting(df, name, current_colours, current_stock_pos):
             row_columns = list(row)
             posWeekly = row_columns[1] + 1
             posMonthly = row_columns[3] + 5
-            posQuarterly = row_columns[5] + 10
+            posQuarterly = row_columns[5] + 11
             if i != current_stock_pos:
                 colours[posWeekly][i] = "yellow"
                 colours[posMonthly][i] = "yellow"
@@ -516,11 +573,9 @@ def table_fig(df, colours):
         ]
     )
 
-    fig.update_layout(
-        title="",
-        margin=dict(l=10, r=10, t=20, b=0)
-    )
+    fig.update_layout(title="", margin=dict(l=10, r=10, t=20, b=0))
     return fig
+
 
 def table_fig_variation(df):
     fig = go.Figure(
@@ -542,75 +597,5 @@ def table_fig_variation(df):
         ]
     )
 
-    fig.update_layout(
-        title="",
-        margin=dict(l=10, r=10, t=20, b=0)
-    )
+    fig.update_layout(title="", margin=dict(l=10, r=10, t=20, b=0))
     return fig
-
-
-#def screen_rsi_plotly(rsiReversalZones, currentRsi):
-#    timeframes = ["Daily", "Weekly", "Monthly"]
-#    parameters = [0.50, 0.55, 0.59]
-#
-#    fig = make_subplots(rows=2, cols=3, vertical_spacing=0.10, horizontal_spacing=0.04, subplot_titles=["DAILY RSI","WEEKLY RSI","MONTHLY RSI"])
-#
-#    # ---------- ROW 1: RSI charts ----------
-#    for i in range(len(rsiReversalZones)):
-#        df_rsi = rsiReversalZones[i]
-#
-#        fechas, rsi = clean_timestamp_rsi(df_rsi)
-#
-#        # RSI scatter
-#        fig.add_trace(
-#            go.Scatter(
-#                x=fechas,
-#                y=rsi,
-#                mode="markers",
-#                marker=dict(color="blue", size=6),
-#                showlegend=False
-#            ),
-#            row=1,
-#            col=i + 1
-#        )
-#
-#        # Current RSI
-#        rsi_dict = currentRsi[i]
-#        rsi_time = list(rsi_dict.keys())[0]
-#        rsi_value = list(rsi_dict.values())[0]
-#
-#        fig.add_hline(
-#            y=rsi_value,
-#            line_color="orange",
-#            line_width=2,
-#            row=1,
-#            col=i + 1
-#        )
-#
-#        fig.add_hline(
-#            y=parameters[i],
-#            line_color="gray",
-#            opacity=0.5,
-#            row=1,
-#            col=i + 1
-#        )
-#
-#        fig.add_trace(
-#            go.Scatter(
-#                x=[rsi_time],
-#                y=[rsi_value],
-#                mode="markers",
-#                marker=dict(color="orange", size=12),
-#                showlegend=False
-#            ),
-#            row=1,
-#            col=i + 1
-#        )
-#
-#        fig.update_xaxes(
-#            title_text=f"RSI {timeframes[i]}: {int(rsi_value)}",
-#            row=1,
-#            col=i + 1
-#        )
-#    fig.update_layout(margin=dict(l=30, r=30, t=75, b=30))
-#    return fig

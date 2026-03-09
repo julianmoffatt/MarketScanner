@@ -18,13 +18,14 @@ def load_data(name):
         return df
     else:    
         if name[0:5] == "flips":
-            return calculation_cycle_flips_all_symbols(name[6:])
+            return calculation_cycle_flips_all_symbols(name[6:], getSymbols())
         elif name[0:12] == "currentflips":
             return current_cycle_flips_all_symbols(name[13:])
         elif name == "returns":
             return calculation_cycle_returns()
         elif name[0:3] == "ema":
             return calculation_ema_extension(name[4:])
+
 
 def stock_statistics(ticker):
     timeframes = getDataStock(ticker) # get data of ticker
