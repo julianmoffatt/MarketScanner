@@ -4,7 +4,6 @@ import pandas as pd
 import ccxt
 import time
 from datetime import datetime, timezone, timedelta
-from screens import *
 
 from statistics_calculations import *
 from data import *
@@ -17,14 +16,18 @@ def load_data(name):
     if not df.empty:
         return df
     else:    
-        if name[0:5] == "flips":
-            return calculation_cycle_flips_all_symbols(name[6:], getSymbols())
-        elif name[0:12] == "currentflips":
-            return current_cycle_flips_all_symbols(name[13:])
-        elif name == "returns":
+        if name[0:12] == "excels/flips":
+            return calculation_cycle_flips_all_symbols(name[13:], getSymbols())
+        elif name[0:19] == "excels/currentflips":
+            return current_cycle_flips_all_symbols(name[20:])
+        elif name == "excels/returns":
             return calculation_cycle_returns()
-        elif name[0:3] == "ema":
-            return calculation_ema_extension(name[4:])
+        elif name == "excels/gapsallsymbols":
+            return calculation_closing_gaps_all_symbols()
+        elif name == "excels/peaksoverview":
+            return calculation_cycle_peak_expansion_all_symbols()
+        elif name[0:12] == "excels/gaps/":
+            return calculation_closing_gaps(name[12:])
 
 
 def stock_statistics(ticker):

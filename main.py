@@ -1,19 +1,12 @@
 #pressure/absortion code, weekly and monthly charts
+import os
 from functions import *
 from sp500 import *
 from statistics_calculations import *
-from screens import *
 from screens_web import *
 from data import *
 
 stock = "ASTS"
-
-def undervalued_scanner():
-    for ticker in ["NVDA", "TSLA", "AAPL", "GOOGL", "IREN", "MU", "ASTS"]:
-        timeframes = getDataStock(ticker) # get data of ticker
-        data_candles = preparingData(timeframes) # prepare candles and rsi, wicks values
-        probabilities, colours  = calculation_StrikesProbabilities(data_candles) # calculation strikes probabilities
-        print(ticker, (1-probabilities[0][-3])*100)
 
 def tradeSystem(LT, HT, df_LowerTimeframe, parameter_BullWick, parameter_BearWick, rsiLong_LT, rsiLong_HT, rsiShort_LT, rsiShort_HT, LongK_LT, LongK_HT, ShortK_LT, ShortK_HT):
     df_HigherTimeframe_base = build_df_HigherTimeframe(HT, df_LowerTimeframe)
@@ -201,16 +194,15 @@ def volumen_simulation():
 
 def supply_demand_scanner(symbol):
     time.sleep(random.uniform(2, 5))
-    ticker = kucoin.fetch_ohlcv(symbol, timeframe='4h', limit=3)
+    ticker = kucoin.fetch_ohlcv(symbol, timeframe='1w', limit=5)
     df = pd.DataFrame(ticker, columns=['timestamp', 'open', 'high', 'low', 'close', 'volume'])  
     df['timestamp'] = pd.to_datetime(df['timestamp'], unit='ms', utc=True)
     df = df.set_index('timestamp')
     df["candle_range"] = df["high"] - df["low"]
     df["upper_wick"] = df["high"] - df[["open", "close"]].max(axis=1)-1
     df["lower_wick"] = df[["open", "close"]].min(axis=1) - df["low"]
-    df['rsi'] = rsi_tradingview(df['close'])
+
     i = len(df)-1
-    time.sleep(random.uniform(2, 5))
     shortPoints = 0
     longPoints = 0
     points = 5
@@ -247,39 +239,6 @@ def supply_demand_scanner_paralelizacion():
     df.to_csv("triggers.csv", index=False, encoding="utf-8", sep=";", decimal=',') 
 
 
-#def main():
-#    while True:
-#        print("\n=== Main Menu ===")
-#        print("1. Statistics")
-#        print("2. Cycle Study")
-#        print("3. Crypto Market Clasification")
-#        print("4. SP500 statistics")
-#        print("5. TradingTriggers")
-#        choice = input("Choose an option (1-5): ")
-#        if choice == "6":
-#            undervalued_scanner()
-#        elif choice == "0":
-#            break
-#        elif choice == "1":
-#            #symbols_simulation()
-#            print("Which stock?")
-#            ticker = input()
-#            stock_statistics(ticker)
-#        elif choice == "2":
-#            cycles_study()
-#        elif choice == "3":
-#            crypto_market_scanner()
-#        elif choice == "4":
-#            sp500_screen()
-#        elif choice == "5":
-#            supply_demand_scanner_paralelizacion()
-#        else:
-#            print("Try again a valid input.")
-#
-#if __name__ == "__main__":
-#    main()
-
-
 # FIBONACCI FOR TPS? CON RSI TAL VEZ, Y KEY LEVELS AND LIQUIDITY LEVELS I CAN DETECT ALSO WITH CODE
 # STUDY OF LIQUIDITY GRABS
 # PARA MEDIR LOS MOVIMIENTOS TENGO QUE UTILIZAR LA VOLATILIDAD DE LOS ULTIMOS AÑOS O ALGO Y HACERLO PROPORCIONAL
@@ -312,15 +271,16 @@ app.layout = html.Div([
         dcc.Tab(label='EXTENSIONS TO EMAs 10 & 20', value='tab-4'),
         dcc.Tab(label='EXTENSIONS TO EMAs 50 & 200', value='tab-5'),
         dcc.Tab(label='CANDLE DEVIATIONS', value='tab-6'),
-        dcc.Tab(label='CANDLE STRIKE PROBABILITIES', value='tab-7'),
-        dcc.Tab(label='RSI DISTRIBUTION', value='tab-8'),
-        dcc.Tab(label='OPEN FLIPS - DAILY CLOSE', value='tab-9'),
-        dcc.Tab(label='OPEN FLIPS - WEEKLY CLOSE', value='tab-10'),
-        dcc.Tab(label='RETURNS LAST YEAR', value='tab-11'),
+        dcc.Tab(label='CANDLE COLOR STRIKES', value='tab-7'),
+        dcc.Tab(label='RELATIVE STRENGTH INDEX', value='tab-8'),
+        dcc.Tab(label='FLIPS OPEN (DAILY CLOSE)', value='tab-9'),
+        dcc.Tab(label='FLIPS OPEN (WEEKLY CLOSE)', value='tab-10'),
         dcc.Tab(label='EMA EXTENSIONS SCREENER', value='tab-12'),
-        dcc.Tab(label='EMAs - REVERSE BACK TO THE MEAN', value='tab-13'),
-        dcc.Tab(label='DAY LAST FLIP OF THE OPEN', value='tab-14'),
-        dcc.Tab(label='GAPS - CLOSING & TIMING', value='tab-15')
+        dcc.Tab(label='EMA - REVERSE BACK TO THE MEAN', value='tab-13'),
+        dcc.Tab(label='LAST FLIP OF THE OPEN', value='tab-14'),
+        dcc.Tab(label='GAPS - GENERAL VIEW', value='tab-15'),
+        dcc.Tab(label='GAPS - OPEN GAPS & CLOSING', value='tab-16'),
+        dcc.Tab(label='CYCLE PEAKS', value='tab-17')
     ]),
     # Contenedor para el gráfico
     html.Div(
@@ -348,21 +308,10 @@ def render_content(tab):
     stock = "BTC-USD" #, "SI=F"
     timeframes = getDataStock(stock) # get data of ticker
     data = preparingData(timeframes) # prepare candles and rsi, wicks values
-    data_gaps = last_X_years(data, 15)
-    df_gaps = calculation_closing_gaps(data_gaps[0])
-    percentil_10 = df_gaps["GapSize"].quantile(0.30)
-    percentil_50 = df_gaps["GapSize"].quantile(0.50)
-    percentil_90 = df_gaps["GapSize"].quantile(0.90)
-    print("PercentilSize:", percentil_10, percentil_50, percentil_90)
-    df_gaps = df_gaps[df_gaps["GapSize"] >= 0.5]
-    df_open = df_gaps[df_gaps["Status"] == "Open"]
-    df_filled = df_gaps[df_gaps["GapFilled"] == True]
-    df_closed = df_gaps[df_gaps["Status"] == "Closed"]
-    print("Total gaps:", len(df_gaps), "Average Size:", round(df_gaps["GapSize"].mean(), 2))
-    print("Partially filled gaps:", len(df_filled), "Average Size:", round(df_filled["GapSize"].mean(), 2))
-    print("Closed gaps:", len(df_closed), "Average Size:", round(df_closed["GapSize"].mean(), 2))
-    print("Open gaps:", len(df_open), "Average Size:", round(df_open["GapSize"].mean(), 2))
 
+    ruta = "excels/dataframe_symbol/"
+    if not os.listdir(ruta):
+        getDataframesDatabase()
 
     if tab == 'tab-1':
         fig = screen_daily_chart(data)
@@ -374,46 +323,43 @@ def render_content(tab):
         fig = screen_monthly_chart(data)
         return fig
     elif tab == 'tab-4':
-        df3 = load_data("ema_"+stock)
-        return screen_ema_extension_plotly(df3, stock, -1)
+        df_tab_4 = calculation_ema_extension(data)
+        return screen_ema_extension_plotly(df_tab_4, stock, -1)
     elif tab == 'tab-5':
-        df3 = load_data("ema_"+stock)
-        return screen_ema_extension_plotly(df3, stock, 1)
+        df_tab_5 = calculation_ema_extension(data)
+        return screen_ema_extension_plotly(df_tab_5, stock, 1)
     elif tab == 'tab-6':
-        timeframes = calculation_average_deviation(data)
-        print("vuelvo del calculo")
-        return screen_deviations(timeframes, stock)
+        df_tab_6 = calculation_average_deviation(data)
+        return screen_deviations(df_tab_6, stock)
     elif tab == 'tab-7':
         probabilities, colours  = calculation_StrikesProbabilities(data) # calculation strikes probabilities
-        return screen_strikes_plotly(probabilities, colours)
+        return screen_strikes_plotly(probabilities, colours, stock)
     elif tab == 'tab-8':
-        timeframes = calculation_Rsi(data) #calculation rsi reversal points
-        return screen_rsi_plotly(timeframes)
+        df_tab_8 = calculation_Rsi(data) #calculation rsi reversal points
+        return screen_rsi_plotly(df_tab_8, stock)
     elif tab == 'tab-9':
-        df1 = load_data("flips_daily")
-        current_flips = load_data("currentflips_daily")
+        df_tab_9 = load_data("excels/flips_daily")
+        current_flips = load_data("excels/currentflips_daily")
         current_stock = getCurrentStockPos(stock)
-        colours = colour_painting(df1, "flips", current_flips, current_stock)
-        return table_fig(df1, colours)    
+        colours = colour_painting(df_tab_9, "flips", current_flips, current_stock)
+        return table_fig(df_tab_9, colours)    
     elif tab == 'tab-10':
-        df1 = load_data("flips_weekly")
-        current_flips = load_data("currentflips_weekly")
+        df_tab_10 = load_data("excels/flips_weekly")
+        current_flips = load_data("excels/currentflips_weekly")
         current_stock = getCurrentStockPos(stock)
-        colours = colour_painting(df1, "flips", current_flips, current_stock)
-        return table_fig(df1, colours)    
-    elif tab == 'tab-11':
-        df2 = load_data("returns")
-        current_stock_pos = getCurrentStockPos(stock)
-        colours = colour_painting(df2, "returns", pd.DataFrame(), current_stock_pos)
-        return table_fig(df2, colours)
+        colours = colour_painting(df_tab_10, "flips", current_flips, current_stock)
+        return table_fig(df_tab_10, colours)    
+    #elif tab == 'tab-11':
+    #    df_tab_11 = load_data("returns")
+    #    current_stock_pos = getCurrentStockPos(stock)
+    #    colours = colour_painting(df_tab_11, "returns", pd.DataFrame(), current_stock_pos)
+    #    return table_fig(df_tab_11, colours)
     elif tab == 'tab-12':
         longs, shorts = screener_ema_extensions()
         return screen_screener_ema_extensions(longs, shorts)
     elif tab == 'tab-13':
-        timeframes = calculation_retest_bands(data)
-        print("Vuelve del calculo")
-        print(timeframes)
-        return screen_ema_retests(timeframes)
+        df_tab_13 = calculation_retest_bands(data)
+        return screen_ema_retests(df_tab_13, stock)
     elif tab == 'tab-14':
         calculation_cycle_flips_all_symbols("daily", [stock])
         calculation_cycle_flips_all_symbols("weekly", [stock])
@@ -421,12 +367,17 @@ def render_content(tab):
         data = [load_data(names[x]) for x in range(0,3)] 
         names = ["last_weekly_flip_on_" + x + "_" + stock for x in ["monthly", "quarterly", "yearly"]]
         data = data + [load_data(names[x]) for x in range(0,3)] 
-        print("Tengo data")
-        print(data)
         return screen_last_flip_open(data, stock)
     elif tab == 'tab-15':
-        df_tab_15 = calculation_closing_gaps_all_symbols()
+        df_tab_15 = load_data("excels/gapsallsymbols")
         return table_fig_variation(df_tab_15)
+    elif tab == 'tab-16':
+        df_tab_16 = load_data("excels/gaps/"+stock)
+        fig_tab_16 = screen_gaps_stock(df_tab_16, stock)
+        return title_stock(fig_tab_16, stock)
+    elif tab == 'tab-17':
+        df_tab_17 = load_data("excels/peaksoverview")
+        return table_fig_variation(df_tab_17)
     else:
         pass #funciones que devuelvan Figs
 

@@ -61,15 +61,19 @@ def screen_daily_chart (data_candles):
         yaxis=dict(showgrid=True, gridcolor='lightgray')
     )
 
-    #fig.update_xaxes(rangebreaks=[dict(bounds=["sat", "mon"])])
+    
     fig, future_dates = margin_right(fig, df)
-
-    #CURRENT PRICE
+    # #CURRENT PRICE
     fig = add_current_price(fig, current_price, future_dates, df)
     #WEEKLY OPEN
     fig = add_timeframe_open(fig, data_candles[1], "Weekly", "red", future_dates)
     # MONTHLY OPEN
     fig = add_timeframe_open(fig, data_candles[2], "Monthly", "purple", future_dates)
+    # Obtenemos todas las fechas del rango (desde el inicio al fin)
+    #all_dates = pd.date_range(start=df.index.min(), end=df.index.max())
+    ## Buscamos qué fechas NO están en nuestros datos (fines de semana + festivos) #### lo puedo añadir cuando calcule opens con dias con datos
+    #holidays = all_dates.difference(df.index)
+    #fig.update_xaxes(rangebreaks=[dict(bounds=["sat","mon"])])
     return fig
 
 
@@ -159,7 +163,7 @@ def screen_monthly_chart (data_candles):
     return fig
 
 
-def screen_strikes_plotly(probabilities, colours):
+def screen_strikes_plotly(probabilities, colours, stock):
     fig = make_subplots(rows=2, cols=3, vertical_spacing=0.10, horizontal_spacing=0.04, subplot_titles=["DAILY CANDLES","WEEKLY CANDLES","MONTHLY CANDLES"])
 
     # ---------- ROW 2: Probabilities ----------
@@ -216,10 +220,11 @@ def screen_strikes_plotly(probabilities, colours):
 
     # ---------- Layout ----------
     fig.update_layout(height=1000, width=None, plot_bgcolor="white", paper_bgcolor="white", margin=dict(l=30, r=30, t=75, b=30))
+    fig = title_stock(fig, stock)
     return fig
 
 
-def screen_rsi_plotly(data):
+def screen_rsi_plotly(data, stock):
     timeframes = ["Daily", "Weekly", "Monthly"]
     fig = make_subplots(rows=2, cols=3, vertical_spacing=0.10, horizontal_spacing=0.04, subplot_titles=["DAILY RSI","WEEKLY RSI","MONTHLY RSI"])
 
@@ -256,20 +261,19 @@ def screen_rsi_plotly(data):
             col=i + 1
         )
     fig.update_layout(margin=dict(l=30, r=30, t=75, b=30))
+    fig = title_stock(fig, stock)
     return fig
 
 
 def screen_ema_extension_plotly(ema_extensions, stock, k):
     col_name_ema = ["extension_ema10", "extension_ema20", "extension_ema50", "extension_ema200"]
     timeframes = ["DAILY","WEEKLY","MONTHLY"]
-    if k == 1:
-        timeframes = ["DAILY","WEEKLY"]
     EMAS = ["10","20","50","200"]
     titles = []
-    t = 0
+    t, e = 0, 0
     text = ""
-    e = 0
     if k == 1:
+        timeframes = ["DAILY","WEEKLY"]
         e = 2
 
     for a in range (0,2*(len(timeframes))):
@@ -371,44 +375,27 @@ def screen_deviations(data, stock):
         for df_for in [df_green, df_red]:      
             if current_value[cont] < df_for["Deviation"].quantile(0.90):
                 ext = df_for["Deviation"]
-                low, high = np.percentile(ext, [0.5, 96])
+                low, high = np.percentile(ext, [0.5, 95])
                 y_range = np.clip(ext, low, high)
             elif current_value[cont] >= df_for["Deviation"].quantile(0.90):
                 ext = df_for["Deviation"]
                 low, high = np.percentile(ext, [0.5, 99.5])
                 y_range = np.clip(ext, low, high)
             
-            fig.add_trace(go.Scatter(x=df_for.index, y=y_range, mode="markers", marker=dict(color="steelblue", size=5), showlegend=False),
+            fig.add_trace(go.Scatter(x=df_for.index, y=y_range, mode="markers", marker=dict(color="steelblue", size=5), showlegend=False, opacity=0.75),
                 row=1+k, col=i + 1) 
-            p95 = df_for["Deviation"].quantile(0.95)
-            p90 = df_for["Deviation"].quantile(0.90)
-            p80 = df_for["Deviation"].quantile(0.80)
-            p50 = df_for["Deviation"].quantile(0.50)
-            p20 = df_for["Deviation"].quantile(0.20)
-            p10 = df_for["Deviation"].quantile(0.10)
-            fig.add_hline(y=p95, line_color="white", line_width=1, row=1+k, col=i + 1,
-                annotation_text="  p95",
-                annotation_position="top right",   
-                annotation_font_size=13,
-                annotation_font_color="black")
-            fig.add_hline(y=p90, line_color="red", line_width=2, row=1+k, col=i + 1)
-            fig.add_hline(y=p80, line_color="red", line_width=2, row=1+k, col=i + 1,
-                annotation_text=f" {p80:.2f}%",
-                annotation_position="right",   
-                annotation_font_size=13,
-                annotation_font_color="black")
-            fig.add_hline(y=p50, line_color="black", line_width=5, row=1+k, col=i + 1,
-                annotation_text=f" {p50:.2f}%",
-                annotation_position="right",   
-                annotation_font_size=13,
-                annotation_font_color="black")
-            fig.add_hline(y=p20, line_color="green", line_width=2, row=1+k, col=i + 1,
-                annotation_text=f" {p20:.2f}%",
-                annotation_position="right", 
-                annotation_font_size=13,
-                annotation_font_color="black")
-            fig.add_hline(y=p10, line_color="green", line_width=2, row=1+k, col=i + 1) 
-            fig.add_hline(y=current_value[cont], line_color="#E9B300", line_dash = 'dot', line_width=4, row=1+k, col=i + 1,
+            
+            percentil_name = ["p90", "p80", "p50", "p20", "p10"]
+            percentil_color = ["black", "black", "red", "black", "black"]
+            percentil_value = [0.90, 0.80, 0.50, 0.20, 0.10]
+            percentil_location = ["top right", "top right", "top right", "top right", "bottom right"]
+            for p in range (0, len(percentil_value)):
+                percentil = df_for["Deviation"].quantile(percentil_value[p])
+                fig.add_hline(line_width=2, row=1+k, col = i+1, annotation_position=percentil_location[p], annotation_font_size=13, annotation_font_color="black",
+                y=percentil,  
+                line_color=percentil_color[p], 
+                annotation_text=percentil_name[p]) 
+            fig.add_hline(y=current_value[cont], line_color="#E9B300", line_dash = 'dot', line_width=5, row=1+k, col=i + 1,
                 annotation_text=f" {current_value[cont]:.2f}%",
                 annotation_position="right", 
                 annotation_font_size=13,
@@ -421,7 +408,7 @@ def screen_deviations(data, stock):
     return fig
 
 
-def screen_ema_retests(data):
+def screen_ema_retests(data, stock):
     fig = make_subplots(rows=2, cols=3, vertical_spacing=0.10, horizontal_spacing=0.04, subplot_titles=["DAILY BANDS RETEST","WEEKLY BANDS RETEST","MONTHLY BANDS RETEST"])
 
     for i in range(len(data)):
@@ -452,6 +439,7 @@ def screen_ema_retests(data):
         fig.add_trace(go.Scatter(x=[current_time], y=[current_value], mode="markers", marker=dict(color="#FFC400", size=14), showlegend=False), row=1, col=i + 1)  
                
     fig.update_layout(margin=dict(l=40, r=40, t=75, b=30))
+    fig = title_stock(fig, stock)
     return fig
 
 
@@ -468,29 +456,75 @@ def screen_last_flip_open(data, stock):
             df = data[i][0:l]
             current_time = data[i].index[-1]
             current_value = data[i]["LastFlip"].iloc[-1]
-            fig.add_trace(
-                go.Scatter(x=df.index, y=df["LastFlip"], mode="markers", marker=dict(color="steelblue", size=10), showlegend=False),
-                row=r,
-                col=c
-            )
-            percentil_name = ["p95", "p80", "p50", "p20"]
-            percentil_color = ["black", "black", "purple", "black"]
-            percentil_value = [0.95, 0.80, 0.50, 0.20]
-            percentil_location = ["top right", "top right", "top right", "bottom right"]
-            for p in range (0, len(percentil_value)):
-                percentil = df["LastFlip"].quantile(percentil_value[p])
-                fig.add_hline(line_width=2, row=r, col = c, annotation_position=percentil_location[p], annotation_font_size=13, annotation_font_color="black",
-                    y=percentil,  
-                    line_color=percentil_color[p], 
-                    annotation_text=percentil_name[p])
+            if i != 0 and i != 3:
+                fig.add_trace(
+                    go.Scatter(x=df.index, y=df["LastFlip"], mode="markers", marker=dict(color="steelblue", size=10), showlegend=False),
+                    row=r,
+                    col=c
+                )
+                percentil_name = ["p95", "p80", "p50", "p20"]
+                percentil_color = ["black", "black", "purple", "black"]
+                percentil_value = [0.95, 0.80, 0.50, 0.20]
+                percentil_location = ["top right", "top right", "top right", "bottom right"]
+                for p in range (0, len(percentil_value)):
+                    percentil = df["LastFlip"].quantile(percentil_value[p])
+                    fig.add_hline(line_width=2, row=r, col = c, annotation_position=percentil_location[p], annotation_font_size=13, annotation_font_color="black",
+                        y=percentil,  
+                        line_color=percentil_color[p], 
+                        annotation_text=percentil_name[p])
     
-            fig.add_hline(y=current_value, line_color="#E9B300", line_dash = 'dot', line_width=4, row=r, col = c, annotation_text=f" {current_value:.0f}", annotation_position="right", annotation_font_size=13, annotation_font_color="blue")
-            fig.add_trace(go.Scatter(x=[current_time], y=[current_value], mode="markers", marker=dict(color="#FFC400", size=14), showlegend=False), row=r, col = c)  
+                fig.add_hline(y=current_value, line_color="#E9B300", line_dash = 'dot', line_width=4, row=r, col = c, annotation_text=f" {current_value:.0f}", annotation_position="right", annotation_font_size=13, annotation_font_color="blue")
+                fig.add_trace(go.Scatter(x=[current_time], y=[current_value], mode="markers", marker=dict(color="#FFC400", size=14), showlegend=False), row=r, col = c)  
+            else:
+                orden = [1,2,3,4,5]
+                df_counts = df["LastFlip"].value_counts().reindex(orden).fillna(0)
+                fig.add_trace(
+                    go.Bar(
+                        x=df_counts.index, 
+                        y=df_counts.values,
+                        name="Eventos/Día",
+                        marker_color='steelblue',
+                        opacity=0.8,
+                        text=df_counts.values,
+                        textposition='outside'
+                    ),
+                    row=r, col=c  # Lo ponemos en la esquina superior derecha del grid
+                )
             c = c + 1
         fig = title_stock(fig, stock)
     except Exception as e:
         print(e)
     return fig
+
+
+def screen_gaps_stock(df, stock): # gaps abiertos, ratio de filling y closing segun el % de gap, distribucion tiempo en cerrarse
+    try:
+        fig = make_subplots(rows=2, cols=3, vertical_spacing=0.10, horizontal_spacing=0.02, subplot_titles=["OPEN GAPS","RATIO CLOSING","DISTRIBUTION DAYS TO CLOSE"], specs=[[{"type": "table"}, {"type": "table"}, {"type": "xy"}],[{"type": "xy"}, {"type": "xy"}, {"type": "xy"}]])
+        df_aux = df[df["Status"] == "Open"]
+        df_open_gaps = df_aux[["Date","GapSize","DaysOpen","GapHigh","GapLow"]]
+        df_open_gaps = df_open_gaps.sort_values(by="Date", ascending=False)
+        df_open_gaps["Date"] = pd.to_datetime(df_open_gaps["Date"]).dt.strftime("%Y-%m-%d")
+        fig_open_gaps = table_fig_variation(df_open_gaps)
+        fig.add_trace(fig_open_gaps.data[0], row=1, col=1)
+
+        df_ratios = pd.DataFrame(columns=["Symbol", "GapSize", "Total Gaps", "Closed Ratio", "Days to Close p10", "Days to Close p20", "Days to Close p50", "Days to Close p80", "Days to Close p90"])
+        for i in range (1, 4):
+            p0 = round(df["GapSize"].quantile((i-1)*0.25),1)
+            p1 = round(df["GapSize"].quantile(i*0.25),1)
+            df_range = df[(df["GapSize"] >= p0) & (df["GapSize"] < p1)]
+            df_range_closed = df_range[df_range["Status"] == "Closed"]
+            percentiles = [round(df_range_closed["DaysOpen"].quantile(i), 1) for i in (0.10,0.20,0.50,0.80,0.90)]
+            df_ratios.loc[len(df_ratios)] = [stock, str(p0) + "-" + str(p1), len(df_range), round(len(df_range[df_range["Status"] == "Closed"])/len(df_range), 2), percentiles[0], percentiles[1], percentiles[2], percentiles[3], percentiles[4]]
+        fig_ratios = table_fig_variation(df_ratios)
+        fig.add_trace(fig_ratios.data[0], row=1, col=2)
+
+        df_closed = df[df["Status"] == "Closed"] 
+        ext_df = df_closed[df_closed["DaysOpen"] <= df_closed["DaysOpen"].quantile(0.9)] #represento p0 a p90 de dias en cerrarse
+        y_range = ext_df["DaysOpen"]
+        fig.add_trace(go.Scatter(x=df_closed["Date"], y=y_range, mode="markers", marker=dict(color="steelblue", size=5), showlegend=False), row=1, col=3)
+        return fig
+    except Exception as e:
+        print(e)
 
 
 def colour_painting(df, name, current_colours, current_stock_pos):
