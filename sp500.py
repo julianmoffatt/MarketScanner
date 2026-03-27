@@ -2,7 +2,6 @@ import yfinance as yf
 import pandas as pd
 from functions import *
 from statistics import *
-from screens import *
 
 def getData_SP500(date):
     spx = yf.download("^GSPC", start="1957-03-04", interval="1d", auto_adjust=False, progress=False)

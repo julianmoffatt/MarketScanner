@@ -140,23 +140,35 @@ def cycle_dynamics(data, lower_timeframe):
     for i in range (1, len(data)):
         HT = data[i].copy()
         LT = LT[LT.index < end[i-1]]
-        cycle = pd.DataFrame(columns=["Date", "Open", "Flips", "LastFlip"])
+        cycle = pd.DataFrame(columns=["Date", "Open", "Flips", "LastFlip", "Direction", "Return"])
         for x in range(0, len(HT)-1):
             df = LT[(LT.index >= HT.index[x]) & (LT.index < HT.index[x+1])]
             if df.empty:
                 continue
             print(timeframe[i-1], HT.iloc[x]["Open"], HT.iloc[x]["Close"], HT.index[x])
             params = cycle_dynamics_calculation(df, HT.iloc[x]["Open"])
-            cycle.loc[len(cycle)] = [HT.index[x], round(HT.iloc[x]["Open"],1), params[0], params[1]]
+            print("save cycle")
+            cycle.loc[len(cycle)] = [HT.index[x], round(HT.iloc[x]["Open"], 1), params[0], params[1], HT.iloc[x]["type"], HT.iloc[x]["Return"]]
+            print("saved")
 
         df = LT[(LT.index >= HT.index[-1])]
         if not df.empty:
             params = cycle_dynamics_calculation(df, HT.iloc[-1]["Open"])
-            cycle.loc[len(cycle)] = [HT.index[-1], round(HT.iloc[-1]["Open"],1), params[0], params[1]]
-
+            print("save last cycle")
+            cycle.loc[len(cycle)] = [HT.index[-1], round(HT.iloc[-1]["Open"],1), params[0], params[1], HT.iloc[x]["type"], HT.iloc[x]["Return"]]
+            print("saved")
         cycle.set_index("Date", inplace=True)
         timeframes_cycles.append(cycle)
     return timeframes_cycles
+
+
+def dataframe_candle_split(data):
+    data_green = []
+    data_red = []
+    for df in data:
+        data_green.append(df[df["Direction"] == "Green"].copy())
+        data_red.append(df[df["Direction"] == "Red"].copy())
+    return data_green, data_red
 
 
 def calculation_cycle_flips_all_symbols(lower_timeframe, symbols):
@@ -167,21 +179,26 @@ def calculation_cycle_flips_all_symbols(lower_timeframe, symbols):
         timeframes_name = ["monthly", "quarterly", "yearly"]
     columns = []
     columns.append("Stock")
-    for i in range (0,4):
+    for i in range (0,3):
         columns.append(str(i) + " " + timeframes_name[0] + "_F")
     for i in range (0,5):
         columns.append(str(i) + " " + timeframes_name[1] + "_F")
-    columns.append(timeframes_name[1] + "_p50") 
+    columns.append("LF" + timeframes_name[1] + "_p50") 
     for i in range (0,5):
         columns.append(str(i) + " " + timeframes_name[2] + "_F")
-    columns.append(timeframes_name[2] + "_p50") 
+    columns.append("LF" + timeframes_name[2] + "_p50") 
     df = pd.DataFrame(columns=columns)
+    df_detail = pd.DataFrame(columns=columns)
+
     for symbol in symbols:
         print(symbol)
-        aux_timeframes = getDataStock(symbol) # get data of ticker        
+        aux_timeframes = getDataStock(symbol)    
         aux_timeframes_2= last_X_years(aux_timeframes, 25)
+        print("Crear Hightimeframe")
         timeframes = create_hightimeframes(aux_timeframes_2, lower_timeframe)
-        data_candles = preparingData(timeframes) # prepare candles and rsi, wicks values
+        print("Vuelve de crear el Hightimeframe")
+        data_candles = preparingData(timeframes) 
+        print("VuelVe de preparar la data")
         dfs = cycle_dynamics(data_candles, lower_timeframe)
         print("comeback from cycle dynamics")
         counts_A = dfs[0]["Flips"].value_counts().reindex(range(4), fill_value=0).to_dict()
@@ -190,24 +207,48 @@ def calculation_cycle_flips_all_symbols(lower_timeframe, symbols):
         total_A = sum(counts_A.values())
         total_B = sum(counts_B.values())
         total_C = sum(counts_C.values())
-        #--------------------------------------------------------------------------------------------
-        if len(symbols) == 1:
-            for a in range (0,3):
-                name = "last_" + lower_timeframe +"_flip_on_"+timeframes_name[a] + "_" +symbol+ ".csv"
-                dfs[a]["LastFlip"].to_csv(name)
-                #name = lower_timeframe +"_flips_on_"+timeframes_name[a] + "_" +symbol+ ".csv"
-                #dfs[a]["Flips"].to_csv(name)
-        #---------------------------------------------------------------------------------------------
+        #-----------------------------------------------
+        print("ANTES DEL DESGLOSE")
+        dfs_green, dfs_red = dataframe_candle_split(dfs)
+
+        if lower_timeframe == "daily":
+            n = "excels/analysis/monthly_" + symbol + ".csv"
+            dfs[1].to_csv(n)
+        else:
+            n = "excels/analysis/quarterly_" + symbol + ".csv"
+            dfs[1].to_csv(n)
+
+        print("VUELVE")
+        names = ["", "_green", "_red"]
+        x = 0
+        for df_aux in [dfs, dfs_green, dfs_red]:
+            counts_A = df_aux[0]["Flips"].value_counts().reindex(range(4), fill_value=0).to_dict()
+            counts_B = df_aux[1]["Flips"].value_counts().reindex(range(5), fill_value=0).to_dict()
+            counts_C = df_aux[2]["Flips"].value_counts().reindex(range(5), fill_value=0).to_dict()
+            total_A = sum(counts_A.values())
+            total_B = sum(counts_B.values())
+            total_C = sum(counts_C.values())
+            p_01 = round(df_aux[1]["LastFlip"].quantile(0.50), 1)
+            p_02 = round(df_aux[2]["LastFlip"].quantile(0.50), 1)   
+            symbol_name = symbol+names[x]
+            df_detail.loc[len(df_detail)] = [symbol_name, round((counts_A[0]/total_A)*100,1), round((counts_A[1]/total_A)*100,1), round((counts_A[2]/total_A)*100,1), round((counts_B[0]/total_B)*100,1), round((counts_B[1]/total_B)*100,1), round((counts_B[2]/total_B)*100,1), round((counts_B[3]/total_B)*100,1), round((counts_B[4]/total_B)*100,1), p_01, round((counts_C[0]/total_C)*100,1), round((counts_C[1]/total_C)*100,1), round((counts_C[2]/total_C)*100,1), round((counts_C[3]/total_C)*100,1), round((counts_C[4]/total_C)*100,1), p_02]
+            x = x+1  
+        print("DESPUES DEL DESGLOSE")
+        
+        for a in range (0,3):
+            name = "excels/LastFlipOpen/" + lower_timeframe +"_flip_on_"+timeframes_name[a] + "_" + symbol + ".csv"
+            dfs[a]["LastFlip"].to_csv(name)
+        
         p_01 = round(dfs[1]["LastFlip"].quantile(0.50), 1)
-        p_02 = round(dfs[2]["LastFlip"].quantile(0.50), 1)
-        try:
-            df.loc[len(df)] = [symbol, round((counts_A[0]/total_A)*100,1), round((counts_A[1]/total_A)*100,1), round((counts_A[2]/total_A)*100,1), round((counts_A[3]/total_A)*100,1), round((counts_B[0]/total_B)*100,1), round((counts_B[1]/total_B)*100,1), round((counts_B[2]/total_B)*100,1), round((counts_B[3]/total_B)*100,1), round((counts_B[4]/total_B)*100,1), p_01, round((counts_C[0]/total_C)*100,1), round((counts_C[1]/total_C)*100,1), round((counts_C[2]/total_C)*100,1), round((counts_C[3]/total_C)*100,1), round((counts_C[4]/total_C)*100,1), p_02]
-        except Exception as e:
-            print(e)
-        print("end for", symbol)
-    if len(symbols) > 1:
-        name_csv = "excels/flips_" + lower_timeframe + ".csv"
-        df.to_csv(name_csv)
+        p_02 = round(dfs[2]["LastFlip"].quantile(0.50), 1)    
+        print("LOC", symbol)
+        df.loc[len(df)] = [symbol, round((counts_A[0]/total_A)*100,1), round((counts_A[1]/total_A)*100,1), round((counts_A[2]/total_A)*100,1), round((counts_B[0]/total_B)*100,1), round((counts_B[1]/total_B)*100,1), round((counts_B[2]/total_B)*100,1), round((counts_B[3]/total_B)*100,1), round((counts_B[4]/total_B)*100,1), p_01, round((counts_C[0]/total_C)*100,1), round((counts_C[1]/total_C)*100,1), round((counts_C[2]/total_C)*100,1), round((counts_C[3]/total_C)*100,1), round((counts_C[4]/total_C)*100,1), p_02]
+        print("AFTER LOC", symbol)
+    
+    name_csv = "excels/flips" + lower_timeframe + ".csv"
+    df.to_csv(name_csv)
+    name_csv = "excels/flips_detail_" + lower_timeframe + ".csv"
+    df_detail.to_csv(name_csv)
     return df
 
 
@@ -224,15 +265,11 @@ def current_cycle_flips_all_symbols(lower_timeframe):
             row = {}
             print("--------------------------------------------------------------------------------------------------------")
             print("i process", symbol)
-            timeframes = getDataStock(symbol) # get data of ticker  
-            print("1")        
-            timeframes = create_hightimeframes(timeframes, lower_timeframe)
-            print("2")    
-            data_candles = preparingData(timeframes) # prepare candles and rsi, wicks values
-            print("3")    
+            timeframes = getDataStock(symbol) # get data of ticker         
+            timeframes = create_hightimeframes(timeframes, lower_timeframe)  
+            data_candles = preparingData(timeframes) # prepare candles and rsi, wicks values   
             symbol_flips = []
             row = {}
-            print("llega aqui")
             for i in range (1,len(data_candles)):
                 lowerTimeframeCandles = data_candles[0][data_candles[0].index >= data_candles[i].index[-1]]
                 open_price = data_candles[i].iloc[-1]["Open"]
@@ -246,37 +283,14 @@ def current_cycle_flips_all_symbols(lower_timeframe):
                 row[f"{tf}LastFlip"] = symbol_flips[i][1]
             rows.append(row)   
         df = pd.DataFrame(rows)
-        name_csv = "excels/currentflips_" + lower_timeframe + ".csv"
+        name_csv = "excels/currentflips" + lower_timeframe + ".csv"
         df.to_csv(name_csv)    
         print("i return the csv of current flips")
         return df 
     except Exception as e:
         print(e)
         
-
-def calculation_cycle_returns():
-    symbols = getSymbols()
-    rows = []
-    for symbol in symbols:
-        print(symbol)
-        aux_timeframes = getDataStock(symbol) # get data of ticker  
-        timeframes = preparingData([aux_timeframes[0]])
-        daily_data = last_year(timeframes)
-        daily_data['weekday'] = daily_data.index.dayofweek
-        daily_data['day_of_month'] = daily_data.index.day
-        mean_by_weekday = daily_data.groupby('weekday')['Return'].mean()
-        mean_by_monthday = daily_data.groupby('day_of_month')['Return'].mean()
-        weekday_mean = mean_by_weekday.reindex(range(5), fill_value=0)   # 0–4
-        monthday_mean = mean_by_monthday.reindex(range(1, 32), fill_value=0)       # 1–31
-        row = {'symbol': symbol}
-        row.update({f'S{i+1}': round((weekday_mean[i]-1)*100,1) for i in range(5)})
-        row.update({f'M{i}': round((monthday_mean[i]-1)*100,1) for i in range(1, 32)})
-        rows.append(row)   # row es dict
-    df = pd.DataFrame(rows)
-    df.to_csv("excels/returns.csv")
-    return df
-    
-
+ 
 def clean_timestamp_rsi(data):
     fechas = []
     valores = []
@@ -504,7 +518,12 @@ def calculation_cycle_peak_expansion(data, stock):
             rows = []
             for i in range(0, len(HT)-1): # High timeframe candles 
                 max_dev = 0
-                if (HT["High"].iloc[i]-HT["Open"].iloc[i]) >= abs(HT["Open"].iloc[i]-HT["Low"].iloc[i]):
+                #if (HT["High"].iloc[i]-HT["Open"].iloc[i]) >= abs(HT["Open"].iloc[i]-HT["Low"].iloc[i]):
+                #    max_dev = HT["High"].iloc[i]
+                #else:
+                #    max_dev = HT["Low"].iloc[i]
+
+                if (HT["type"].iloc[i] == "Green"):
                     max_dev = HT["High"].iloc[i]
                 else:
                     max_dev = HT["Low"].iloc[i]
@@ -558,6 +577,29 @@ def calculation_cycle_peak_expansion_all_symbols():
         return peak_study
     except Exception as e:
         print("Error" + e)
+
+
+#def calculation_cycle_returns():
+#    symbols = getSymbols()
+#    rows = []
+#    for symbol in symbols:
+#        print(symbol)
+#        aux_timeframes = getDataStock(symbol) # get data of ticker  
+#        timeframes = preparingData([aux_timeframes[0]])
+#        daily_data = last_year(timeframes)
+#        daily_data['weekday'] = daily_data.index.dayofweek
+#        daily_data['day_of_month'] = daily_data.index.day
+#        mean_by_weekday = daily_data.groupby('weekday')['Return'].mean()
+#        mean_by_monthday = daily_data.groupby('day_of_month')['Return'].mean()
+#        weekday_mean = mean_by_weekday.reindex(range(5), fill_value=0)   # 0–4
+#        monthday_mean = mean_by_monthday.reindex(range(1, 32), fill_value=0)       # 1–31
+#        row = {'symbol': symbol}
+#        row.update({f'S{i+1}': round((weekday_mean[i]-1)*100,1) for i in range(5)})
+#        row.update({f'M{i}': round((monthday_mean[i]-1)*100,1) for i in range(1, 32)})
+#        rows.append(row)   # row es dict
+#    df = pd.DataFrame(rows)
+#    df.to_csv("excels/returns.csv")
+#    return df
     
 
 

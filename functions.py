@@ -17,17 +17,17 @@ def load_data(name):
         return df
     else:    
         if name[0:12] == "excels/flips":
-            return calculation_cycle_flips_all_symbols(name[13:], getSymbols())
+            return calculation_cycle_flips_all_symbols(name[12:], getSymbols())
         elif name[0:19] == "excels/currentflips":
-            return current_cycle_flips_all_symbols(name[20:])
-        elif name == "excels/returns":
-            return calculation_cycle_returns()
+            return current_cycle_flips_all_symbols(name[19:])
         elif name == "excels/gapsallsymbols":
             return calculation_closing_gaps_all_symbols()
         elif name == "excels/peaksoverview":
             return calculation_cycle_peak_expansion_all_symbols()
         elif name[0:12] == "excels/gaps/":
             return calculation_closing_gaps(name[12:])
+        #elif name == "excels/returns":
+        #    return calculation_cycle_returns()
 
 
 def stock_statistics(ticker):

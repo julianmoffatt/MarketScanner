@@ -5,7 +5,7 @@ import time
 import random
 
 def getSymbols():
-    symbols = ["ASTS", "IREN","NVDA", "TSLA", "MU", "GOOGL", "PLTR", "MSTR", "INTC", "AAPL", "AMZN", "AMD", "MSFT", "NFLX", "META", "ORCL", "BABA", "GC=F", "SI=F","BTC-USD", "ETH-USD"]
+    symbols = ["ASTS", "IREN", "MU", "GOOGL", "AAPL", "AMZN", "MSFT", "NFLX", "META", "ORCL", "INTC", "BABA", "BIDU", "JD", "PLTR",  "MSTR", "GC=F", "SI=F","BTC-USD", "ETH-USD"] #, "NVDA", TSLA, "AMD"
     return symbols
 
 def getCurrentStockPos(stock):
@@ -40,6 +40,7 @@ def valid_stock(stock):
 def getDataframesDatabase():
     symbols = getSymbols()
     for symbol in symbols:
+        time.sleep(0.25) 
         name = "excels/dataframe_symbol/" + symbol + ".csv"
         try:
             stock_daily = pd.read_csv(name, index_col=0, parse_dates=True, date_format='%Y-%m-%d')
@@ -90,7 +91,7 @@ def preparingData(data):
         df["Last_Close"] = df["Close"].shift(1)
         df["type"] = np.where(df["Close"] > df["Last_Close"], "Green", "Red")
         df["rsi"] = rsi_tradingview(df['Close'])
-        df["Return"] = df["Close"] / df["Last_Close"]
+        df["Return"] = round(((df["Close"] / df["Last_Close"])-1)*100,1)
         df["Volatility"] = abs(1-(df["High"]/df["Low"]))
         df['Volatility_Rolling'] = df["Volatility"].ewm(alpha=1/14, adjust=False).mean()
         #df["Upper_wick"] = df["High"] - df[["Open", "Close"]].max(axis=1)

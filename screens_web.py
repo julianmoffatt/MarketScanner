@@ -4,7 +4,7 @@ from plotly.subplots import make_subplots
 from statistics_calculations import *
 
 def title_stock(fig, stock):
-    fig.update_layout(margin=dict(l=30, r=30, t=75, b=30), title={'text': stock,'x': 0.5,'y': 0.98,'xanchor': 'center','yanchor': 'top', 'font': {'size': 20, 'color': 'purple'}})
+    fig.update_layout(margin=dict(l=30, r=30, t=75, b=75), title={'text': stock,'x': 0.5,'y': 0.98,'xanchor': 'center','yanchor': 'top', 'font': {'size': 20, 'color': 'purple'}})
     return fig
 
 def margin_right(fig, df):
@@ -422,7 +422,7 @@ def screen_ema_retests(data, stock):
             col=i + 1
         )
         percentil_name = ["p95", "p80", "p50", "p20"]
-        percentil_color = ["black", "black", "purple", "black"]
+        percentil_color = ["black", "black", "red", "black"]
         percentil_value = [0.95, 0.80, 0.50, 0.20]
         percentil_location = ["top right", "top right", "top right", "bottom right"]
         for p in range (0, len(percentil_value)):
@@ -476,19 +476,20 @@ def screen_last_flip_open(data, stock):
                 fig.add_hline(y=current_value, line_color="#E9B300", line_dash = 'dot', line_width=4, row=r, col = c, annotation_text=f" {current_value:.0f}", annotation_position="right", annotation_font_size=13, annotation_font_color="blue")
                 fig.add_trace(go.Scatter(x=[current_time], y=[current_value], mode="markers", marker=dict(color="#FFC400", size=14), showlegend=False), row=r, col = c)  
             else:
-                orden = [1,2,3,4,5]
+                orden = [1, 2, 3, 4, 5, 6, 7]
                 df_counts = df["LastFlip"].value_counts().reindex(orden).fillna(0)
+                df_pct = (df_counts / df_counts.sum()) * 100
                 fig.add_trace(
                     go.Bar(
-                        x=df_counts.index, 
-                        y=df_counts.values,
-                        name="Eventos/Día",
+                        x=df_pct.index, 
+                        y=df_pct.values, 
+                        name="Probabilidad %",
                         marker_color='steelblue',
                         opacity=0.8,
-                        text=df_counts.values,
+                        text=[f"{val:.1f}%" for val in df_pct.values],
                         textposition='outside'
                     ),
-                    row=r, col=c  # Lo ponemos en la esquina superior derecha del grid
+                    row=r, col=c
                 )
             c = c + 1
         fig = title_stock(fig, stock)
@@ -527,51 +528,57 @@ def screen_gaps_stock(df, stock): # gaps abiertos, ratio de filling y closing se
         print(e)
 
 
+
+def screen_cycle_correlations(df1, df2, stock):
+    df_green1 = df1[df1["Direction"] == "Green"]
+    df_red1 =  df1[df1["Direction"] == "Red"]
+    df_green2 = df2[df2["Direction"] == "Green"]
+    df_red2 =  df2[df2["Direction"] == "Red"]
+    fig = make_subplots(rows=2, cols=4, vertical_spacing=0.10, horizontal_spacing=0.04, subplot_titles=["Num Flips x Returns (Green)[MONTHLY]", "Day Last Flip x Returns (Green)[MONTHLY]", "Num Flips x Returns (Red)[MONTHLY]", "Day LastFlip x Returns (Red)[MONTHLY]", "Num Flips x Returns (Green)[QUARTERLY]", "Week Last Flip x Returns (Green)[QUARTERLY]", "Num Flips x Returns (Red)[QUARTERLY]", "Week LastFlip x Returns (Red)[QUARTERLY]"])
+    r, c = 1, 1
+    color = "green"
+    for df in [df_green1, df_red1, df_green2, df_red2]:
+        fig.add_trace(go.Scatter(x=df["Flips"], y=df["Return"], mode="markers", marker=dict(color=color, size=12), showlegend=False), row=r, col=c)
+        c = c + 1
+        fig.add_trace(go.Scatter(x=df["LastFlip"], y=df["Return"], mode="markers", marker=dict(color=color, size=12), showlegend=False), row=r, col=c)
+        if c == 2:
+            c = c + 1
+            color = "red"
+        elif c == 4:
+            r = 2
+            c = 1
+            color = "green"
+    fig = title_stock(fig, stock)
+    return fig
+
+
+
 def colour_painting(df, name, current_colours, current_stock_pos):
-    print("start")
     colours = []
     if name == "flips":
         for i, col in enumerate(df.columns):
             if i == 0:
                 colours.append(["white"] * len(df))
-            elif i <= 4:
+            elif i <= 3:
                 colours.append(["lightgreen"] * len(df))
-            elif i <= 9:
+            elif i <= 8:
                 colours.append(["lightblue"] * len(df))
-            elif i == 10 or i == 16: 
-                colours.append(["gray"] * len(df))
+            elif i == 9 or i == 15: 
+                colours.append(["lightgray"] * len(df))
             else:
                 colours.append(["lightgreen"] * len(df))
-    elif name == "returns":
-        for i, col in enumerate(df.columns):
-            if i == 0:
-                colours.append(["white"] * len(df))
-            elif i <= 5:
-                colours.append(["lightgreen"] * len(df))
-            else:
-                colours.append(["lightblue"] * len(df))
-    else:
-        for i, col in enumerate(df.columns):
-            colours.append(["white"] * len(df))
-        print("i got to the else")
-        return colours
 
     if current_stock_pos != -1:
         for x in range (0, len(colours)): # i highlight the current stock
-            if x == 0:
-                colours[x][current_stock_pos] = "#a6a6a6"        
-            elif x <= 4:
-                colours[x][current_stock_pos] = "#a6a6a6"   
-            else:        
-                colours[x][current_stock_pos] = "#a6a6a6"
-
+            colours[x][current_stock_pos] = "#a6a6a6"        
+    
     if not current_colours.empty: # i override the current flips of opens situation in weekly and monthly
         i = 0
         for row in current_colours.itertuples(index=False):
             row_columns = list(row)
             posWeekly = row_columns[1] + 1
-            posMonthly = row_columns[3] + 5
-            posQuarterly = row_columns[5] + 11
+            posMonthly = row_columns[3] + 4
+            posQuarterly = row_columns[5] + 10
             if i != current_stock_pos:
                 colours[posWeekly][i] = "yellow"
                 colours[posMonthly][i] = "yellow"
@@ -584,6 +591,60 @@ def colour_painting(df, name, current_colours, current_stock_pos):
             i = i + 1
     print("i return colours")
     return colours
+
+
+def colour_painting_detailed_flips (df, current_stock_pos):
+    colours = []    
+    for i, col in enumerate(df.columns):
+        column_colors = []
+        for row_idx in range(len(df)):
+            # Determinamos el "tipo" de fila según el patrón de 3
+            row_pattern = row_idx % 3  # 0: Original/Gris, 1: Verde, 2: Rojo
+
+            # Lógica por columnas (tu lógica original adaptada)
+            if i == 0:
+                if row_pattern == 0:
+                    column_colors.append("#E1E6CF")
+                else:
+                    column_colors.append("white")
+            elif i == 9 or i == 15: 
+                column_colors.append("#E6CFE0")
+            else:
+                if row_pattern != 0:
+                    if i > 0 and i <= 3:
+                        column_colors.append("white")
+                    elif i > 3 and i <= 8:
+                        column_colors.append("white")
+                    elif i > 9 and i <= 14:
+                        column_colors.append("white")
+                else:
+                    column_colors.append("#E1E6CF")      
+        colours.append(column_colors)
+
+    if current_stock_pos != -1:
+        for x in range (0, len(colours)): # i highlight the current stock
+            colours[x][current_stock_pos*3] = "yellow"        
+            colours[x][(current_stock_pos*3)+1] = "lightgreen"   
+            colours[x][(current_stock_pos*3)+2] = "#FFB15C"
+    print("i return colours")
+    return colours
+
+
+def colour_painting_simple_table(df, current_stock_pos):
+    colours = []    
+    k = 0
+    for i, col in enumerate(df.columns):
+        if k == 0:
+            colours.append(["lightgray"] * len(df))
+        elif k == 3:
+            colours.append(["lightyellow"] * len(df))
+        else:
+            colours.append(["white"] * len(df))
+
+    if current_stock_pos != -1:
+        for x in range (0, len(colours)): # i highlight the current stock
+            colours[x][current_stock_pos] = "yellow" 
+    return colours       
 
 
 def table_fig(df, colours):
@@ -606,7 +667,6 @@ def table_fig(df, colours):
             )
         ]
     )
-
     fig.update_layout(title="", margin=dict(l=10, r=10, t=20, b=0))
     return fig
 
