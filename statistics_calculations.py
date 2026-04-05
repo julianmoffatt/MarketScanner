@@ -102,7 +102,7 @@ def calculation_Rsi(data):
 
    
 # calculations of flips of a dataframe data around a given open
-def cycle_dynamics_calculation(df, open):  
+def cycle_dynamics_calculation(df, open, margin):  
     flips, lastFlip, side = 0, 1, 0
     sides = {1:0, 0:1}
     margin = 0
@@ -111,14 +111,14 @@ def cycle_dynamics_calculation(df, open):
     else:
         side = 0
     for k in range (1, len(df)):
-        margin = (open * (df.iloc[k]["Volatility_Rolling"] * 0.075))
+        margin = (open * (df.iloc[k]["Volatility_Rolling"] * margin))
         close_fixed_bull = df.iloc[k]["Close"] - margin
         close_fixed_bear = df.iloc[k]["Close"] + margin
         if ((close_fixed_bull > open) and (side == 0)) or ((close_fixed_bear < open) and (side == 1)):
             side = sides[side]
             flips = flips + 1
             lastFlip = k + 1
-            print("FLIP", df.index[k], df.iloc[k]["Close"])
+            #print("FLIP", df.index[k], df.iloc[k]["Close"])
     print("Margin to count the flip", margin)
     return flips, lastFlip
 
@@ -126,8 +126,12 @@ def cycle_dynamics_calculation(df, open):
 def cycle_dynamics(data, lower_timeframe):
     parameters = []
     if lower_timeframe == "daily":
+        timeframe = ["WEEKLY", "MONTHLY", "QUARTERLY"]
+        margin = 0.075
         parameters = [pd.Timedelta(days=7), pd.offsets.MonthBegin(1), pd.offsets.MonthBegin(3)]
     elif lower_timeframe == "weekly":
+        timeframe = ["MONTHLY", "QUARTERLY", "YEARLY"]
+        margin = 0.05
         parameters = [pd.offsets.MonthBegin(1), pd.offsets.MonthBegin(3), pd.offsets.MonthBegin(12)]
     timeframes_cycles = []
     LT = data[0][14:].copy()
@@ -135,7 +139,6 @@ def cycle_dynamics(data, lower_timeframe):
     end.append(pd.to_datetime((data[1].index[-1] + parameters[0]), utc=True))
     end.append(pd.to_datetime((data[2].index[-1] + parameters[1]), utc=True))
     end.append(pd.to_datetime((data[3].index[-1] + parameters[2]), utc=True))
-    timeframe = ["WEEKLY", "MONTHLY", "QUARTERLY"]
 
     for i in range (1, len(data)):
         HT = data[i].copy()
@@ -145,18 +148,14 @@ def cycle_dynamics(data, lower_timeframe):
             df = LT[(LT.index >= HT.index[x]) & (LT.index < HT.index[x+1])]
             if df.empty:
                 continue
-            print(timeframe[i-1], HT.iloc[x]["Open"], HT.iloc[x]["Close"], HT.index[x])
-            params = cycle_dynamics_calculation(df, HT.iloc[x]["Open"])
-            print("save cycle")
+            print(timeframe[i-1], "| OPEN:", HT.iloc[x]["Open"], "| CLOSE:", HT.iloc[x]["Close"], "| DATE:", HT.index[x])
+            params = cycle_dynamics_calculation(df, HT.iloc[x]["Open"], margin)
             cycle.loc[len(cycle)] = [HT.index[x], round(HT.iloc[x]["Open"], 1), params[0], params[1], HT.iloc[x]["type"], HT.iloc[x]["Return"]]
-            print("saved")
 
         df = LT[(LT.index >= HT.index[-1])]
         if not df.empty:
-            params = cycle_dynamics_calculation(df, HT.iloc[-1]["Open"])
-            print("save last cycle")
+            params = cycle_dynamics_calculation(df, HT.iloc[-1]["Open"], margin)
             cycle.loc[len(cycle)] = [HT.index[-1], round(HT.iloc[-1]["Open"],1), params[0], params[1], HT.iloc[x]["type"], HT.iloc[x]["Return"]]
-            print("saved")
         cycle.set_index("Date", inplace=True)
         timeframes_cycles.append(cycle)
     return timeframes_cycles
@@ -194,21 +193,19 @@ def calculation_cycle_flips_all_symbols(lower_timeframe, symbols):
         print(symbol)
         aux_timeframes = getDataStock(symbol)    
         aux_timeframes_2= last_X_years(aux_timeframes, 25)
-        print("Crear Hightimeframe")
         timeframes = create_hightimeframes(aux_timeframes_2, lower_timeframe)
-        print("Vuelve de crear el Hightimeframe")
         data_candles = preparingData(timeframes) 
-        print("VuelVe de preparar la data")
         dfs = cycle_dynamics(data_candles, lower_timeframe)
-        print("comeback from cycle dynamics")
         counts_A = dfs[0]["Flips"].value_counts().reindex(range(4), fill_value=0).to_dict()
         counts_B = dfs[1]["Flips"].value_counts().reindex(range(5), fill_value=0).to_dict()
         counts_C = dfs[2]["Flips"].value_counts().reindex(range(5), fill_value=0).to_dict()
         total_A = sum(counts_A.values())
         total_B = sum(counts_B.values())
         total_C = sum(counts_C.values())
-        #-----------------------------------------------
-        print("ANTES DEL DESGLOSE")
+        p_01 = round(dfs[1]["LastFlip"].quantile(0.50), 1)
+        p_02 = round(dfs[2]["LastFlip"].quantile(0.50), 1)    
+        df.loc[len(df)] = [symbol, round((counts_A[0]/total_A)*100,1), round((counts_A[1]/total_A)*100,1), round((counts_A[2]/total_A)*100,1), round((counts_B[0]/total_B)*100,1), round((counts_B[1]/total_B)*100,1), round((counts_B[2]/total_B)*100,1), round((counts_B[3]/total_B)*100,1), round((counts_B[4]/total_B)*100,1), p_01, round((counts_C[0]/total_C)*100,1), round((counts_C[1]/total_C)*100,1), round((counts_C[2]/total_C)*100,1), round((counts_C[3]/total_C)*100,1), round((counts_C[4]/total_C)*100,1), p_02]
+    
         dfs_green, dfs_red = dataframe_candle_split(dfs)
 
         if lower_timeframe == "daily":
@@ -218,13 +215,12 @@ def calculation_cycle_flips_all_symbols(lower_timeframe, symbols):
             n = "excels/analysis/quarterly_" + symbol + ".csv"
             dfs[1].to_csv(n)
 
-        print("VUELVE")
         names = ["", "_green", "_red"]
         x = 0
         for df_aux in [dfs, dfs_green, dfs_red]:
-            counts_A = df_aux[0]["Flips"].value_counts().reindex(range(4), fill_value=0).to_dict()
-            counts_B = df_aux[1]["Flips"].value_counts().reindex(range(5), fill_value=0).to_dict()
-            counts_C = df_aux[2]["Flips"].value_counts().reindex(range(5), fill_value=0).to_dict()
+            counts_A = df_aux[0]["Flips"].value_counts().reindex(range(5), fill_value=0).to_dict()
+            counts_B = df_aux[1]["Flips"].value_counts().reindex(range(10), fill_value=0).to_dict()
+            counts_C = df_aux[2]["Flips"].value_counts().reindex(range(10), fill_value=0).to_dict()
             total_A = sum(counts_A.values())
             total_B = sum(counts_B.values())
             total_C = sum(counts_C.values())
@@ -233,18 +229,11 @@ def calculation_cycle_flips_all_symbols(lower_timeframe, symbols):
             symbol_name = symbol+names[x]
             df_detail.loc[len(df_detail)] = [symbol_name, round((counts_A[0]/total_A)*100,1), round((counts_A[1]/total_A)*100,1), round((counts_A[2]/total_A)*100,1), round((counts_B[0]/total_B)*100,1), round((counts_B[1]/total_B)*100,1), round((counts_B[2]/total_B)*100,1), round((counts_B[3]/total_B)*100,1), round((counts_B[4]/total_B)*100,1), p_01, round((counts_C[0]/total_C)*100,1), round((counts_C[1]/total_C)*100,1), round((counts_C[2]/total_C)*100,1), round((counts_C[3]/total_C)*100,1), round((counts_C[4]/total_C)*100,1), p_02]
             x = x+1  
-        print("DESPUES DEL DESGLOSE")
         
         for a in range (0,3):
             name = "excels/LastFlipOpen/" + lower_timeframe +"_flip_on_"+timeframes_name[a] + "_" + symbol + ".csv"
             dfs[a]["LastFlip"].to_csv(name)
         
-        p_01 = round(dfs[1]["LastFlip"].quantile(0.50), 1)
-        p_02 = round(dfs[2]["LastFlip"].quantile(0.50), 1)    
-        print("LOC", symbol)
-        df.loc[len(df)] = [symbol, round((counts_A[0]/total_A)*100,1), round((counts_A[1]/total_A)*100,1), round((counts_A[2]/total_A)*100,1), round((counts_B[0]/total_B)*100,1), round((counts_B[1]/total_B)*100,1), round((counts_B[2]/total_B)*100,1), round((counts_B[3]/total_B)*100,1), round((counts_B[4]/total_B)*100,1), p_01, round((counts_C[0]/total_C)*100,1), round((counts_C[1]/total_C)*100,1), round((counts_C[2]/total_C)*100,1), round((counts_C[3]/total_C)*100,1), round((counts_C[4]/total_C)*100,1), p_02]
-        print("AFTER LOC", symbol)
-    
     name_csv = "excels/flips" + lower_timeframe + ".csv"
     df.to_csv(name_csv)
     name_csv = "excels/flips_detail_" + lower_timeframe + ".csv"
@@ -256,14 +245,15 @@ def current_cycle_flips_all_symbols(lower_timeframe):
     try:
         timeframes_name = ["weekly", "monthly", "quarterly"]
         if lower_timeframe == "daily":
+            margin = 0.075
             timeframes_name = ["weekly", "monthly", "quarterly"]
         elif lower_timeframe == "weekly":
+            margin = 0.05
             timeframes_name = ["monthly", "quarterly", "yearly"]
         symbols = getSymbols()
         rows = []
         for symbol in symbols:
             row = {}
-            print("--------------------------------------------------------------------------------------------------------")
             print("i process", symbol)
             timeframes = getDataStock(symbol) # get data of ticker         
             timeframes = create_hightimeframes(timeframes, lower_timeframe)  
@@ -273,7 +263,7 @@ def current_cycle_flips_all_symbols(lower_timeframe):
             for i in range (1,len(data_candles)):
                 lowerTimeframeCandles = data_candles[0][data_candles[0].index >= data_candles[i].index[-1]]
                 open_price = data_candles[i].iloc[-1]["Open"]
-                flips, lastFlip = cycle_dynamics_calculation(lowerTimeframeCandles, open_price)
+                flips, lastFlip = cycle_dynamics_calculation(lowerTimeframeCandles, open_price, margin)
                 if flips > 4:
                     flips = 4 #represent a 5+ or a cell with the actual number
                 symbol_flips.append([flips, lastFlip])
@@ -311,6 +301,7 @@ def clean_timestamp_rsi(data):
 
     return fechas, valores
 
+
 def rsi_tradingview(prices, period=14):
     delta = prices.diff()
     gain = delta.clip(lower=0)
@@ -324,33 +315,28 @@ def rsi_tradingview(prices, period=14):
 
 # Calculo de EMA EXTENSION
 def calculation_ema_extension(data): 
-    print("Entra")
     ema_extensions = []
+    i = 0
     for df in data:
         df = df.copy()
-        df["EMA10"] = df["Close"].ewm(span=10, adjust=False).mean()
-        df["extension_ema10"] = ((df["Close"] - df["EMA10"]) / df["EMA10"])*100
-        df["EMA20"] = df["Close"].ewm(span=20, adjust=False).mean()
-        df["extension_ema20"] = ((df["Close"] - df["EMA20"]) / df["EMA20"])*100
-        df["EMA50"] = df["Close"].ewm(span=50, adjust=False).mean()
-        df["extension_ema50"] = ((df["Close"] - df["EMA50"]) / df["EMA50"])*100
-        df["EMA200"] = df["Close"].ewm(span=200, adjust=False).mean()
-        df["extension_ema200"] = ((df["Close"] - df["EMA200"]) / df["EMA200"])*100   
+        ema_number = [10,20,50,200]
+        ema_name = ["ema10", "ema20", "ema50", "ema200"]
+        for ema in ["EMA10", "EMA20", "EMA50", "EMA200"]:
+            df[ema] = df["Close"].ewm(span=ema_number[i], adjust=False).mean()
+            df["extension_"+ema_name[i]] = ((df["Close"] - df[ema]) / df[ema])*100
+            df["extension_low_"+ema_name[i]] = ((df["Low"] - df[ema]) / df[ema])*100
+            df["extension_high_"+ema_name[i]] = ((df["High"] - df[ema]) / df[ema])*100
+        i += 1
         ema_extensions.append(df)
-    print("Salgo")
     return ema_extensions    
 
 
 def screener_ema_extensions():
-    #symbols_sp500 = get_sp500_symbols()
-    #symbols_crypto = get_crypto_symbols()
-    #symbols = get_hyperliquid_symbols()
     try:
         symbols = getSymbols()
-
-        col_name_ema = ["extension_ema10", "extension_ema20", "extension_ema50"] 
-        timeframes_name = ["DAILY", "WEEKLY", "MONTHLY"] #, "extension_ema50", "extension_ema200"]
-        emas_name = ["EMA 10", "EMA 20", "EMA 50", "EMA 200"]
+        col_name_ema = ["extension_ema10", "extension_ema20"]
+        timeframes_name = ["D"]
+        emas_name = ["EMA 10", "EMA 20"]
         rows = []
         num = 1
         for symbol in symbols:
@@ -359,26 +345,26 @@ def screener_ema_extensions():
             timeframes = getDataStock(symbol) 
             data = preparingData(timeframes) 
             timeframes = calculation_ema_extension(data)
-            timeframes = timeframes[:2]
-            row = {"Stock": symbol, "Price": round(timeframes[0]["Close"].iloc[-1],1)}
-            t, e = 0, 0
-            for tf in timeframes:
-                e = 0
-                for col_name in col_name_ema:
-                    current_value = tf[col_name].iloc[-1]
-                    p = stats.percentileofscore(tf[col_name].dropna(), current_value, kind='rank')
-                    column = "P " + timeframes_name[t] + " " + emas_name[e]
-                    row[column] = round(p, 1)
-                    if t == 1 and e == 1:
-                        break
-                    e = e + 1
-                t = t + 1                
+            timeframes = timeframes[0]
+            row = {"Stock": symbol, "Price": round(timeframes["Close"].iloc[-1],1)}
+            e = 0
+            for col_name in col_name_ema:
+                current_value = timeframes[col_name].iloc[-1]
+                p = stats.percentileofscore(timeframes[col_name].dropna(), current_value, kind='rank')
+                column = "P_" + timeframes_name[0] + "_" + emas_name[e]
+                row[column] = round(p, 1)
+                e = e + 1
+            retest_bands = calculation_retest_bands_screener(timeframes) 
+            row["P 80"] = round(retest_bands["TimeAway"].quantile(0.8),1)
+            row["P 95"] = round(retest_bands["TimeAway"].quantile(0.95),1)
+            row["P 99"] = round(retest_bands["TimeAway"].quantile(0.99),1)
+            row["TimeAway"] = retest_bands["TimeAway"].iloc[-1]
+            row["EMA10_now"] = round(retest_bands["EMA10_now"].iloc[-1],1)
+            row["EMA10_tmw"] = round(retest_bands["EMA10_tmw"].iloc[-1],1)
             rows.append(row) 
-            if num == 100:
-                break
         df = pd.DataFrame(rows)
-        longs_df = df[(df['P DAILY EMA 10'] <= 70) & (df['P DAILY EMA 20'] <= 70)].sort_values(by='P DAILY EMA 10', ascending=True)
-        shorts_df = df[(df['P DAILY EMA 10'] >= 30) & (df['P DAILY EMA 20'] >= 30)].sort_values(by='P DAILY EMA 10', ascending=False)
+        longs_df = df[(df['P_D_EMA 10'] <= 30) & (df['P_D_EMA 20'] <= 30)].sort_values(by='TimeAway', ascending=False)
+        shorts_df = df[(df['P_D_EMA 10'] >= 70) & (df['P_D_EMA 20'] >= 70)].sort_values(by='TimeAway', ascending=False)
         return longs_df, shorts_df
     except Exception as e:
         print(e)
@@ -390,8 +376,36 @@ def calculation_average_deviation(data):
     for df in data:
         df = df.copy()
         df['Deviation'] = np.where(df['type'] == 'Green', ((df['Open'] - df['Low']) / df['Open'])*100, ((df['High'] - df['Open']) / df['Open'])*100)
+        df = df[df['Deviation']>=0]
         timeframes.append(df)
     return timeframes 
+
+
+def calculation_retest_bands_screener(df): 
+    df = df.copy()
+    rows = []
+    k = 0
+
+    df["EMA_10"] = df["Close"].ewm(span=10, adjust=False).mean()
+    df["EMA_25"] = df["Close"].ewm(span=25, adjust=False).mean()
+    df = df.iloc[25:].copy() # Cortamos para tener datos limpios
+    
+    tolerance = 0.01 
+    ema_top = df[['EMA_10', 'EMA_25']].max(axis=1) * (1 + tolerance)
+    ema_bot = df[['EMA_10', 'EMA_25']].min(axis=1) * (1 - tolerance)
+
+    for i in range(len(df)):
+        is_away = (df['Low'].iloc[i] > ema_top.iloc[i]) or (df['High'].iloc[i] < ema_bot.iloc[i])
+
+        if is_away:
+            k += 1
+        else:
+            if k > 0:
+                rows.append({"Date": df.index[i], "TimeAway": k, "EMA10_now": 0, "EMA10_tmw": 0})
+            k = 0
+    ema10Tomorrow = df['EMA_10'].iloc[-1] / (df['EMA_10'].iloc[-2]/df['EMA_10'].iloc[-1])
+    rows.append({"Date": df.index[-1], "TimeAway": k, "EMA10_now": df['EMA_10'].iloc[-1], "EMA10_tmw": ema10Tomorrow})    
+    return pd.DataFrame(rows)
 
 
 def calculation_retest_bands(data):
@@ -401,18 +415,19 @@ def calculation_retest_bands(data):
         cont = cont + 1
         rows = []
         k = 0
-        df["EMA_12"] = df["Close"].ewm(span=12, adjust=False).mean()
-        df["EMA_21"] = df["Close"].ewm(span=21, adjust=False).mean()
+        df["EMA_10"] = df["Close"].ewm(span=10, adjust=False).mean()
+        df["EMA_25"] = df["Close"].ewm(span=25, adjust=False).mean()
         df = df[12:]
-        tolerance = 0.0025 * cont
-        ema_top = df[['EMA_12', 'EMA_21']].max(axis=1) * (1 + tolerance)
-        ema_bot = df[['EMA_21', 'EMA_12']].min(axis=1) * (1 - tolerance)
+        tolerance = 0.01 * cont
+        ema_top = df[['EMA_10', 'EMA_25']].max(axis=1) * (1 + tolerance)
+        ema_bot = df[['EMA_25', 'EMA_10']].min(axis=1) * (1 - tolerance)
 
         for i in range(len(df)):
             top_val = ema_top.iloc[i] * (1 + tolerance)
             bot_val = ema_bot.iloc[i] * (1 - tolerance)
             try:
                 is_away = (df['Low'].iloc[i] > top_val) or (df['High'].iloc[i] < bot_val)
+
             except Exception as e:
                 print(e)
 
@@ -422,7 +437,7 @@ def calculation_retest_bands(data):
                 if k > 0:
                     rows.append({"Date": df.index[i], "TimeAway": k})
                 k = 0
-        # Para capturar la racha actual si todavía sigue lejos
+
         rows.append({"Date": df.index[-1], "TimeAway": k})  
         timeframes.append(pd.DataFrame(rows))
     return timeframes
@@ -513,7 +528,7 @@ def calculation_cycle_peak_expansion(data, stock):
     try:
         timeframe = ["weekly", "monthly"]
         df_daily = data[0]
-        for x in range(1, len(data)): # High timeframe
+        for x in range(2, len(data)): # High timeframe
             HT = data[x]
             rows = []
             for i in range(0, len(HT)-1): # High timeframe candles 
@@ -522,7 +537,6 @@ def calculation_cycle_peak_expansion(data, stock):
                 #    max_dev = HT["High"].iloc[i]
                 #else:
                 #    max_dev = HT["Low"].iloc[i]
-
                 if (HT["type"].iloc[i] == "Green"):
                     max_dev = HT["High"].iloc[i]
                 else:
@@ -531,11 +545,11 @@ def calculation_cycle_peak_expansion(data, stock):
                 LT = df_daily.loc[HT.index[i] : HT.index[i+1]].iloc[:-1]
                 for k in range(0, len(LT)):
                     if (max_dev == LT["High"].iloc[k]) or (max_dev == LT["Low"].iloc[k]):
-                        rows.append({"Date": HT.index[i], "PeakExpansion": k + 1})
+                        rows.append({"Date": HT.index[i], "PeakExpansion": k + 1, "Return": HT["Return"].iloc[i]})
                         break
             df = pd.DataFrame(rows)
-            #name = "/excels/peak/" + stock + timeframe[x-1]
-            #df.to_csv(name)
+            name = "excels/peaks/" + stock + "_" + timeframe[x-1] + ".csv"
+            df.to_csv(name)
             dataframes.append(df)
         return dataframes
     except Exception as e:
@@ -560,18 +574,12 @@ def calculation_cycle_peak_expansion_all_symbols():
             aux_timeframes = getDataStock(symbol) # get data of ticker  
             timeframes = preparingData(aux_timeframes)
             data = last_X_years(timeframes, 25)
-            print("before function", symbol)
             dataframes_symbol = calculation_cycle_peak_expansion(data, symbol)
-            print("after function", symbol)
-            info = [symbol]
-            print(1)
-            for t in range(1,2):
-                for p in [0.10,0.20,0.50,0.80,0.90]:
-                    percentil = dataframes_symbol[t]["PeakExpansion"].quantile(p)
-                    info.append(round(percentil,0))
-            print(3)
+            info = [symbol]        
+            for p in [0.10,0.20,0.50,0.80,0.90]:
+                percentil = dataframes_symbol[0]["PeakExpansion"].quantile(p)
+                info.append(round(percentil,0))
             peak_study.loc[len(peak_study)] = info
-            print(4)
 
         peak_study.to_csv("excels/peaksoverview.csv")
         return peak_study

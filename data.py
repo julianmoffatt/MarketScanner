@@ -5,7 +5,11 @@ import time
 import random
 
 def getSymbols():
-    symbols = ["ASTS", "IREN", "MU", "GOOGL", "AAPL", "AMZN", "MSFT", "NFLX", "META", "ORCL", "INTC", "BABA", "BIDU", "JD", "PLTR",  "MSTR", "GC=F", "SI=F","BTC-USD", "ETH-USD"] #, "NVDA", TSLA, "AMD"
+    symbols = ["ASTS", "IREN", "MU", "NVDA", "GOOGL", "AAPL", "AMZN", "AMD", "MSFT", "NFLX", "META", "ORCL", "INTC", "TSLA", "BABA", "BIDU", "JD", "PLTR",  "MSTR", "GC=F", "SI=F", "CL=F", "BTC-USD", "ETH-USD"]
+    return symbols
+
+def get_hyperliquid_symbols():
+    symbols = ["BTC-USD", "ETH-USD","NVDA", "TSLA", "MU", "GOOGL", "PLTR", "INTC", "AAPL", "AMZN", "AMD", "MSFT", "NFLX", "META", "ORCL", "BABA", "GC=F", "SI=F"]
     return symbols
 
 def getCurrentStockPos(stock):
@@ -25,10 +29,6 @@ def get_crypto_symbols():
     symbols = ["BTC-USD", "ETH-USD", "SOL-USD", "LINK-USD", "BNB-USD"]
     return symbols
 
-def get_hyperliquid_symbols():
-    symbols = ["BTC-USD", "ETH-USD","NVDA", "TSLA", "MU", "GOOGL", "PLTR", "MSTR", "INTC", "AAPL", "AMZN", "AMD", "MSFT", "NFLX", "META", "ORCL", "BABA", "GC=F", "SI=F"]
-    return symbols
-
 def valid_stock(stock):
     symbols = getSymbols()
     if stock in symbols:
@@ -40,7 +40,7 @@ def valid_stock(stock):
 def getDataframesDatabase():
     symbols = getSymbols()
     for symbol in symbols:
-        time.sleep(0.25) 
+        time.sleep(2) 
         name = "excels/dataframe_symbol/" + symbol + ".csv"
         try:
             stock_daily = pd.read_csv(name, index_col=0, parse_dates=True, date_format='%Y-%m-%d')
@@ -65,6 +65,8 @@ def getDataStock(symbol):
         load = False
     if isinstance(stock_daily.columns, pd.MultiIndex):
         stock_daily.columns = stock_daily.columns.get_level_values(0)
+    
+    stock_daily = stock_daily[stock_daily["Low"] > 0]
 
     if not load:
         stock_daily.to_csv(name)
@@ -74,6 +76,30 @@ def getDataStock(symbol):
     stock_weekly = stock_daily.resample('W-MON', label='left', closed='left').agg({'Open': 'first','High': 'max','Low': 'min','Close': 'last','Volume': 'sum'})
     stock_monthly = stock_daily.resample('MS', label='left', closed='left').agg({'Open': 'first','High': 'max','Low': 'min','Close': 'last','Volume': 'sum'})
     return [stock_daily, stock_weekly, stock_monthly]
+
+
+def getDataStock_LT(symbol):
+    name = "excels/dataframe_symbol_LT_/" + symbol + ".csv"
+    load = True
+    try:
+        stock_daily = pd.read_csv(name, index_col=0)
+        if "Ticker" in stock_daily.columns or "Price" in stock_daily.columns:
+            stock_daily = pd.read_csv(name, header=[0, 1], index_col=0, parse_dates=True)
+            stock_daily.columns = stock_daily.columns.get_level_values(0)
+    except FileNotFoundError:
+        data_1H = yf.download(tickers = symbol, period = "max", interval = "1h")
+        load = False
+    if isinstance(data_1H.columns, pd.MultiIndex):
+        data_1H.columns = data_1H.columns.get_level_values(0)
+    if not load:
+        data_1H.to_csv(name)
+    if data_1H.index.tz is None:
+        data_1H.index = data_1H.index.tz_localize('UTC')
+    else:
+        data_1H.index = data_1H.index.tz_convert('UTC')
+    data_4H = data_1H.resample('4h', label='left').agg({'Open': 'first','High': 'max','Low': 'min','Close': 'last','Volume': 'sum'})
+    data_4H.dropna(inplace=True)
+    return [data_1H, data_4H]
 
 
 def rsi_tradingview(prices, period=14): #calculation of rsi
@@ -86,6 +112,7 @@ def rsi_tradingview(prices, period=14): #calculation of rsi
     rsi = 100 - (100 / (1 + rs))
     return rsi
 
+
 def preparingData(data):
     for df in data:
         df["Last_Close"] = df["Close"].shift(1)
@@ -94,6 +121,8 @@ def preparingData(data):
         df["Return"] = round(((df["Close"] / df["Last_Close"])-1)*100,1)
         df["Volatility"] = abs(1-(df["High"]/df["Low"]))
         df['Volatility_Rolling'] = df["Volatility"].ewm(alpha=1/14, adjust=False).mean()
+        df["EMA_10"] = df["Close"].ewm(span=10, adjust=False).mean()
+        df["EMA_25"] = df["Close"].ewm(span=10, adjust=False).mean()
         #df["Upper_wick"] = df["High"] - df[["Open", "Close"]].max(axis=1)
         #df["Lower_wick"] = df[["Open", "Close"]].min(axis=1) - df["Low"]
     return data

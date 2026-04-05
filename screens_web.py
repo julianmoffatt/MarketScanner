@@ -267,6 +267,8 @@ def screen_rsi_plotly(data, stock):
 
 def screen_ema_extension_plotly(ema_extensions, stock, k):
     col_name_ema = ["extension_ema10", "extension_ema20", "extension_ema50", "extension_ema200"]
+    col_name_ema_high = ["extension_high_ema10", "extension_high_ema20", "extension_high_ema50", "extension_high_ema200"]
+    col_name_ema_low = ["extension_low_ema10", "extension_low_ema20", "extension_low_ema50", "extension_low_ema200"]
     timeframes = ["DAILY","WEEKLY","MONTHLY"]
     EMAS = ["10","20","50","200"]
     titles = []
@@ -275,6 +277,12 @@ def screen_ema_extension_plotly(ema_extensions, stock, k):
     if k == 1:
         timeframes = ["DAILY","WEEKLY"]
         e = 2
+    elif k == 10:
+        timeframes = ["1h", "4h"]
+        e = 0
+        EMAS = ["10","20"]
+        k = 1
+
 
     for a in range (0,2*(len(timeframes))):
         current_point = ema_extensions[t][col_name_ema[e]].iloc[-1]
@@ -309,6 +317,11 @@ def screen_ema_extension_plotly(ema_extensions, stock, k):
             y_range = np.clip(ext, low, high)
             fechas = df.index
 
+            ext_high_pts = df[df[col_name_ema_high[x + k]] >= p95][col_name_ema_high[x + k]]
+            ext_low_pts = df[df[col_name_ema_low[x + k]] <= p05][col_name_ema_low[x + k]]
+            fig.add_trace(go.Scatter(x=ext_high_pts.index, y=ext_high_pts, mode="markers", marker=dict(size=4, color="red"), showlegend=False), row=x, col=i + 1)
+            fig.add_trace(go.Scatter(x=ext_low_pts.index, y=ext_low_pts, mode="markers", marker=dict(size=4, color="red"), showlegend=False), row=x, col=i + 1)
+
             fig.add_trace(
                 go.Scatter(
                     x=fechas,
@@ -328,7 +341,7 @@ def screen_ema_extension_plotly(ema_extensions, stock, k):
                     x=[current_time],
                     y=[current_ext],
                     mode="markers",
-                    marker=dict(size=12, color="orange"),
+                    marker=dict(size=14, color="orange"),
                     showlegend=False
                 ),
                 row=x,
@@ -408,16 +421,20 @@ def screen_deviations(data, stock):
     return fig
 
 
-def screen_ema_retests(data, stock):
-    fig = make_subplots(rows=2, cols=3, vertical_spacing=0.10, horizontal_spacing=0.04, subplot_titles=["DAILY BANDS RETEST","WEEKLY BANDS RETEST","MONTHLY BANDS RETEST"])
+def screen_ema_retests(data, stock, k):
+    if k == 0:
+        timeframes = ["DAILY BANDS RETEST","WEEKLY BANDS RETEST"]
+    elif k == 1:
+        timeframes = ["1H BANDS RETEST","4H BANDS RETEST"]
+    fig = make_subplots(rows=2, cols=2, vertical_spacing=0.10, horizontal_spacing=0.04, subplot_titles=timeframes)
 
-    for i in range(len(data)):
+    for i in range(len(data)-1):
         l = len(data[i])-1
         df = data[i][0:l]
         current_time = data[i]["Date"].iloc[-1]
         current_value = data[i]["TimeAway"].iloc[-1]
         fig.add_trace(
-            go.Scatter(x=df["Date"], y=df["TimeAway"], mode="markers", marker=dict(color="steelblue", size=8), showlegend=False),
+            go.Scatter(x=df["Date"], y=df["TimeAway"], mode="markers", marker=dict(color="steelblue", size=12), showlegend=False),
             row=1,
             col=i + 1
         )
@@ -551,6 +568,37 @@ def screen_cycle_correlations(df1, df2, stock):
     fig = title_stock(fig, stock)
     return fig
 
+
+def screen_lastflip_x_peak(df1, df2, stock):
+    try:       
+        fig = make_subplots(rows=2, cols=2, vertical_spacing=0.10, horizontal_spacing=0.04, subplot_titles=["Distance LastFlip to Peak (Mean and standard deviation)[GREEN - MONTHLY]", "List of Last flips with Peaks [MONTHLY]","Distance LastFlip to Peak (Mean and standard deviation)[RED - MONTHLY]",""], specs=[[{"type": "xy"}, {"type": "domain"}],[{"type": "xy"}, {"type": "domain"}]]) 
+        df_merged = pd.merge(df1, df2, left_index=True, right_on='Date', how='inner')
+        df_aux = df_merged[df_merged["LastFlip"] < df_merged["PeakExpansion"]]
+        df_green = df_aux[df_aux["Return"]>=0]
+        df_red = df_aux[df_aux["Return"]<0]
+        r = 1
+        for df in [df_green, df_red]:
+            df["Distance"] = df["PeakExpansion"]-df["LastFlip"]
+            df_group = df.groupby("LastFlip")["Distance"].agg(['mean', 'std']).reset_index()
+            df_group.columns = ['LastFlip', 'Mean', 'Std']
+            df_group['Std'] = df_group['Std'].fillna(0)
+            fig.add_trace(go.Scatter(x=df_group["LastFlip"], y=df_group["Mean"], 
+                error_y=dict(
+                type='data', # Indica que usamos valores fijos de una columna
+                array=df_group["Std"], # La desviación hacia arriba
+                visible=True,
+                color='black',
+                thickness=1.5,
+                width=5 # Ancho del tope de la barra de error
+            ), mode="markers", marker=dict(color="black", size=12), showlegend=False), row=r, col=1)  
+            df_sorted = df.sort_values(by='LastFlip', ascending=True)
+            fig_open_gaps = table_fig_variation(df_sorted)
+            fig.add_trace(fig_open_gaps.data[0], row=r, col=2) 
+            r = r+1     
+        fig = title_stock(fig, stock)
+        return fig
+    except Exception as e:
+        print(e)
 
 
 def colour_painting(df, name, current_colours, current_stock_pos):
