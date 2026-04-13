@@ -316,17 +316,17 @@ def rsi_tradingview(prices, period=14):
 # Calculo de EMA EXTENSION
 def calculation_ema_extension(data): 
     ema_extensions = []
-    i = 0
     for df in data:
         df = df.copy()
         ema_number = [10,20,50,200]
-        ema_name = ["ema10", "ema20", "ema50", "ema200"]
+        ema_name = ["ema10", "ema20", "ema50", "ema200"]        
+        i = 0
         for ema in ["EMA10", "EMA20", "EMA50", "EMA200"]:
             df[ema] = df["Close"].ewm(span=ema_number[i], adjust=False).mean()
             df["extension_"+ema_name[i]] = ((df["Close"] - df[ema]) / df[ema])*100
             df["extension_low_"+ema_name[i]] = ((df["Low"] - df[ema]) / df[ema])*100
             df["extension_high_"+ema_name[i]] = ((df["High"] - df[ema]) / df[ema])*100
-        i += 1
+            i += 1
         ema_extensions.append(df)
     return ema_extensions    
 
@@ -418,19 +418,12 @@ def calculation_retest_bands(data):
         df["EMA_10"] = df["Close"].ewm(span=10, adjust=False).mean()
         df["EMA_25"] = df["Close"].ewm(span=25, adjust=False).mean()
         df = df[12:]
-        tolerance = 0.01 * cont
+        tolerance = 0.0025
         ema_top = df[['EMA_10', 'EMA_25']].max(axis=1) * (1 + tolerance)
         ema_bot = df[['EMA_25', 'EMA_10']].min(axis=1) * (1 - tolerance)
 
         for i in range(len(df)):
-            top_val = ema_top.iloc[i] * (1 + tolerance)
-            bot_val = ema_bot.iloc[i] * (1 - tolerance)
-            try:
-                is_away = (df['Low'].iloc[i] > top_val) or (df['High'].iloc[i] < bot_val)
-
-            except Exception as e:
-                print(e)
-
+            is_away = (df['Low'].iloc[i] > ema_top.iloc[i]) or (df['High'].iloc[i] < ema_bot.iloc[i])
             if is_away:
                 k += 1
             else:
@@ -585,6 +578,72 @@ def calculation_cycle_peak_expansion_all_symbols():
         return peak_study
     except Exception as e:
         print("Error" + e)
+
+
+def calculation_cashsession_dynamics():
+    rows = []
+    symbols = getSymbols()
+    for symbol in symbols:
+        aux_timeframes = getDataStock(symbol) # get data of ticker  
+        timeframes = preparingData(aux_timeframes)
+        data = last_X_years(timeframes, 3)
+        data_HT = data[0].copy()
+        data = getDataStock_LT(symbol)
+        data_LT = data[0].copy()
+        data_MicroT = getDataStock_MT(symbol)
+
+        if not data_HT.empty and not data_LT.empty and not data_MicroT.empty:
+            nameField = ["Return1H", "type1H", "Return15m", "type15m"]
+            timeframes = ["1h","15m"]
+            x = 0
+            row = {}
+            for df in [data_LT, data_MicroT]:
+                data_HT = data_HT[data_HT.index >= df.index[0]]  
+                df = df[df.index >= data_HT.index[0]]            
+                data_HT = data_HT[1:].copy()
+                data_HT[nameField[0+x]] = data_HT["Return"]
+                data_HT[nameField[1+x]] = data_HT["type"]    
+                for i in range(0, len(data_HT)):
+                    aux = data_LT[data_LT.index.date == data_HT.index[i].date()]
+                    idx = data_HT.index[i]
+                    data_HT.loc[idx, nameField[0+x]] = ((aux["Close"].iloc[0]/aux["Open"].iloc[0])-1) * 100
+                    if data_HT.loc[idx, nameField[0+x]] >= 0:
+                        data_HT.loc[idx, nameField[1+x]] = "Green"
+                    else:
+                        data_HT.loc[idx, nameField[1+x]] = "Red"
+
+                Green = data_HT[data_HT[nameField[1+x]] == "Green"] 
+                Green_Green = Green[Green["type"] == "Green"]
+                Green_Green_Beyond = Green_Green[Green_Green["Return"] > Green_Green[nameField[0+x]]]
+                Green_Red= Green[Green["type"] == "Red"]
+                Red = data_HT[data_HT[nameField[1+x]] == "Red"] 
+                Red_Green = Red[Red["type"] == "Green"]
+                Red_Red = Red[Red["type"] == "Red"]
+                Red_Red_Beyond = Red_Red[Red_Red["Return"] < Red_Red[nameField[0+x]]]
+                row["symbol"] = symbol
+                name = "NumGreen" + timeframes[x]
+                row[name] = len(Green)
+                name = "Green " + timeframes[x] + " (GreenDay)"
+                row[name] = round(len(Green_Green)/len(Green),2)
+                name = "Green " + timeframes[x] + " (RedDay)"
+                row[name] = round(len(Green_Red)/len(Green),2)
+                name = "Day higher vs" + timeframes[x] + " (Green)"
+                row[name] = round(len(Green_Green_Beyond)/len(Green_Green),2)
+                name = "NumRed" + timeframes[x]
+                row[name] = len(Red)
+                name = "Red " + timeframes[x] + " (RedDay)"
+                row[name] = round(len(Red_Red)/len(Red),2)
+                name = "Red " + timeframes[x] + " (GreenDay)"
+                row[name] = round(len(Red_Green)/len(Red),2)
+                name = "Day lower vs " + timeframes[x]
+                row[name] = round(len(Red_Red_Beyond)/len(Red_Red),2)
+                x += 1
+            print(row)
+            rows.append(row)
+        #pillar distintos timeframes y filtrar quedandome a partir del primer dia de data
+        # montar las probabilidades segun el primer close de 15min, 30min, 1h, 2h (opcional)
+    df = pd.DataFrame(rows)
+    return df
 
 
 #def calculation_cycle_returns():

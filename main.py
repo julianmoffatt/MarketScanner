@@ -150,7 +150,8 @@ app.layout = html.Div([
         dcc.Tab(label='LFxPeak', value='tab-21', style=tab_style, selected_style=tab_selected_style),
         dcc.Tab(label='Test', value='tab-22', style=tab_style, selected_style=tab_selected_style),
         dcc.Tab(label='1h/4h Ext', value='tab-23', style=tab_style, selected_style=tab_selected_style),
-        dcc.Tab(label='1h/4h MR', value='tab-24', style=tab_style, selected_style=tab_selected_style)
+        dcc.Tab(label='1h/4h MR', value='tab-24', style=tab_style, selected_style=tab_selected_style), 
+        dcc.Tab(label='CashSession', value='tab-25', style=tab_style, selected_style=tab_selected_style)
     ]
     ),
 
@@ -207,7 +208,7 @@ def render_content(stock, tab, n_clicks):
     if not os.listdir(ruta):
         print("DATABASE")
         getDataframesDatabase()
-
+    
     timeframes = getDataStock(stock) 
     data = preparingData(timeframes) 
     current_stock = getCurrentStockPos(stock)
@@ -294,7 +295,6 @@ def render_content(stock, tab, n_clicks):
         return fig_tab_21
     elif tab == 'tab-22':
         df = test_strategy_all_symbols()
-        print("Hemos vuelto")
         return table_fig_variation(df)
     elif tab == 'tab-23':
         data_tab_23 = getDataStock_LT(stock)
@@ -304,6 +304,10 @@ def render_content(stock, tab, n_clicks):
         data_tab_24 = getDataStock_LT(stock)
         df_tab_24 = calculation_retest_bands(data_tab_24)
         return screen_ema_retests(df_tab_24, stock, 1)
+    elif tab == 'tab-25':
+        data_tab_25 = calculation_cashsession_dynamics()
+        print("Llega a volver")
+        return table_fig_variation(data_tab_25)
     else:
         pass
 

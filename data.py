@@ -79,13 +79,14 @@ def getDataStock(symbol):
 
 
 def getDataStock_LT(symbol):
-    name = "excels/dataframe_symbol_LT_/" + symbol + ".csv"
+    time.sleep(2) 
+    name = "excels/dataframe_symbol_LT/" + symbol + ".csv"
     load = True
     try:
-        stock_daily = pd.read_csv(name, index_col=0)
-        if "Ticker" in stock_daily.columns or "Price" in stock_daily.columns:
-            stock_daily = pd.read_csv(name, header=[0, 1], index_col=0, parse_dates=True)
-            stock_daily.columns = stock_daily.columns.get_level_values(0)
+        data_1H = pd.read_csv(name, index_col=0)
+        if "Ticker" in data_1H.columns or "Price" in data_1H.columns:
+            data_1H = pd.read_csv(name, header=[0, 1], index_col=0, parse_dates=True)
+            data_1H.columns = data_1H.columns.get_level_values(0)
     except FileNotFoundError:
         data_1H = yf.download(tickers = symbol, period = "max", interval = "1h")
         load = False
@@ -93,6 +94,7 @@ def getDataStock_LT(symbol):
         data_1H.columns = data_1H.columns.get_level_values(0)
     if not load:
         data_1H.to_csv(name)
+    data_1H.index = pd.to_datetime(data_1H.index)
     if data_1H.index.tz is None:
         data_1H.index = data_1H.index.tz_localize('UTC')
     else:
@@ -100,6 +102,18 @@ def getDataStock_LT(symbol):
     data_4H = data_1H.resample('4h', label='left').agg({'Open': 'first','High': 'max','Low': 'min','Close': 'last','Volume': 'sum'})
     data_4H.dropna(inplace=True)
     return [data_1H, data_4H]
+
+
+def getDataStock_MT(symbol):
+    data_MicroT = yf.download(symbol, interval="15m", auto_adjust=False, progress=False, period="max") 
+    if isinstance(data_MicroT.columns, pd.MultiIndex):
+        data_MicroT.columns = data_MicroT.columns.get_level_values(0)
+    data_MicroT.index = pd.to_datetime(data_MicroT.index)
+    if data_MicroT.index.tz is None:
+        data_MicroT.index = data_MicroT.index.tz_localize('UTC')
+    else:
+        data_MicroT.index = data_MicroT.index.tz_convert('UTC')
+    return data_MicroT
 
 
 def rsi_tradingview(prices, period=14): #calculation of rsi
