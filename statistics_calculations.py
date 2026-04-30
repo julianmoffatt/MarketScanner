@@ -102,58 +102,81 @@ def calculation_Rsi(data):
 
    
 # calculations of flips of a dataframe data around a given open
-def cycle_dynamics_calculation(df, open, margin):  
-    flips, lastFlip, side = 0, 1, 0
-    sides = {1:0, 0:1}
-    margin = 0
-    if df.iloc[0]["Close"] >= open:
-        side = 1
-    else:
-        side = 0
-    for k in range (1, len(df)):
-        margin = (open * (df.iloc[k]["Volatility_Rolling"] * margin))
-        close_fixed_bull = df.iloc[k]["Close"] - margin
-        close_fixed_bear = df.iloc[k]["Close"] + margin
-        if ((close_fixed_bull > open) and (side == 0)) or ((close_fixed_bear < open) and (side == 1)):
-            side = sides[side]
-            flips = flips + 1
-            lastFlip = k + 1
-            #print("FLIP", df.index[k], df.iloc[k]["Close"])
-    print("Margin to count the flip", margin)
-    return flips, lastFlip
+def cycle_dynamics_calculation(df, open, marginK):  
+    try:
+        flips, lastFlip, side, margin = 0, 1, 0, 0
+        sides = {1:0, 0:1}
+        if df.iloc[0]["Close"] >= open:
+            side = 1
+        else:
+            side = 0
+        for k in range (1, len(df)):
+            margin = (open * (df.iloc[k]["Volatility_Rolling"] * marginK))
+            close_fixed_bull = df.iloc[k]["Close"] - margin
+            close_fixed_bear = df.iloc[k]["Close"] + margin
+            if (close_fixed_bear / df.iloc[k]["Close"]) <= 1.005:
+                close_fixed_bull = df.iloc[k]["Close"] * 0.995
+                close_fixed_bear = df.iloc[k]["Close"] * 1.005
+
+            if ((close_fixed_bull > open) and (side == 0)) or ((close_fixed_bear < open) and (side == 1)):
+                side = sides[side]
+                flips = flips + 1
+                lastFlip = k + 1
+                print("FLIP", df.index[k], df.iloc[k]["Close"])
+        print("Margin to count the flip", margin)
+        return flips, lastFlip
+    except Exception as e:
+        print(e) 
 
 
 def cycle_dynamics(data, lower_timeframe):
     parameters = []
     if lower_timeframe == "daily":
         timeframe = ["WEEKLY", "MONTHLY", "QUARTERLY"]
-        margin = 0.075
+        margin = 0.1
+        t = 0
         parameters = [pd.Timedelta(days=7), pd.offsets.MonthBegin(1), pd.offsets.MonthBegin(3)]
+        LT = data[t][14:].copy()
     elif lower_timeframe == "weekly":
         timeframe = ["MONTHLY", "QUARTERLY", "YEARLY"]
-        margin = 0.05
+        margin = 0.075
+        t = 1
         parameters = [pd.offsets.MonthBegin(1), pd.offsets.MonthBegin(3), pd.offsets.MonthBegin(12)]
+        LT = data[t][14:].copy()
     timeframes_cycles = []
-    LT = data[0][14:].copy()
     end = []
     end.append(pd.to_datetime((data[1].index[-1] + parameters[0]), utc=True))
     end.append(pd.to_datetime((data[2].index[-1] + parameters[1]), utc=True))
     end.append(pd.to_datetime((data[3].index[-1] + parameters[2]), utc=True))
-
-    for i in range (1, len(data)):
+   
+    for i in range (1+t, len(data)):
         HT = data[i].copy()
-        LT = LT[LT.index < end[i-1]]
+        LT = LT[LT.index < end[i-1-t]]
+        MT = pd.DataFrame()
+        if lower_timeframe == "weekly":
+            MT = data[0][14:].copy()
+        
         cycle = pd.DataFrame(columns=["Date", "Open", "Flips", "LastFlip", "Direction", "Return"])
         for x in range(0, len(HT)-1):
             df = LT[(LT.index >= HT.index[x]) & (LT.index < HT.index[x+1])]
             if df.empty:
                 continue
-            print(timeframe[i-1], "| OPEN:", HT.iloc[x]["Open"], "| CLOSE:", HT.iloc[x]["Close"], "| DATE:", HT.index[x])
+            if lower_timeframe == "weekly":
+                df_partialweek = MT[(MT.index >= HT.index[x]) & (MT.index < df.index[0])]
+                if not df_partialweek.empty and len(df_partialweek) == 4:
+                    df = merge_partialweek(df, df_partialweek)
+            print(timeframe[i-1-t], "| OPEN:", HT.iloc[x]["Open"], "| CLOSE:", HT.iloc[x]["Close"], "| DATE:", HT.index[x])
+            if lower_timeframe == "weekly":
+                print(df)
             params = cycle_dynamics_calculation(df, HT.iloc[x]["Open"], margin)
             cycle.loc[len(cycle)] = [HT.index[x], round(HT.iloc[x]["Open"], 1), params[0], params[1], HT.iloc[x]["type"], HT.iloc[x]["Return"]]
 
         df = LT[(LT.index >= HT.index[-1])]
         if not df.empty:
+            if lower_timeframe == "weekly":
+                df_partialweek = MT[(MT.index >= HT.index[x]) & (MT.index < df.index[0])]
+                if not df_partialweek.empty and len(df_partialweek) == 4:
+                    df = merge_partialweek(df, df_partialweek)
             params = cycle_dynamics_calculation(df, HT.iloc[-1]["Open"], margin)
             cycle.loc[len(cycle)] = [HT.index[-1], round(HT.iloc[-1]["Open"],1), params[0], params[1], HT.iloc[x]["type"], HT.iloc[x]["Return"]]
         cycle.set_index("Date", inplace=True)
@@ -196,9 +219,9 @@ def calculation_cycle_flips_all_symbols(lower_timeframe, symbols):
         timeframes = create_hightimeframes(aux_timeframes_2, lower_timeframe)
         data_candles = preparingData(timeframes) 
         dfs = cycle_dynamics(data_candles, lower_timeframe)
-        counts_A = dfs[0]["Flips"].value_counts().reindex(range(4), fill_value=0).to_dict()
-        counts_B = dfs[1]["Flips"].value_counts().reindex(range(5), fill_value=0).to_dict()
-        counts_C = dfs[2]["Flips"].value_counts().reindex(range(5), fill_value=0).to_dict()
+        counts_A = dfs[0]["Flips"].value_counts().reindex(range(5), fill_value=0).to_dict()
+        counts_B = dfs[1]["Flips"].value_counts().reindex(range(10), fill_value=0).to_dict()
+        counts_C = dfs[2]["Flips"].value_counts().reindex(range(10), fill_value=0).to_dict()
         total_A = sum(counts_A.values())
         total_B = sum(counts_B.values())
         total_C = sum(counts_C.values())
@@ -245,9 +268,11 @@ def current_cycle_flips_all_symbols(lower_timeframe):
     try:
         timeframes_name = ["weekly", "monthly", "quarterly"]
         if lower_timeframe == "daily":
+            t = 0
             margin = 0.075
             timeframes_name = ["weekly", "monthly", "quarterly"]
         elif lower_timeframe == "weekly":
+            t = 1
             margin = 0.05
             timeframes_name = ["monthly", "quarterly", "yearly"]
         symbols = getSymbols()
@@ -260,8 +285,13 @@ def current_cycle_flips_all_symbols(lower_timeframe):
             data_candles = preparingData(timeframes) # prepare candles and rsi, wicks values   
             symbol_flips = []
             row = {}
-            for i in range (1,len(data_candles)):
-                lowerTimeframeCandles = data_candles[0][data_candles[0].index >= data_candles[i].index[-1]]
+            for i in range (1+t,len(data_candles)):
+                lowerTimeframeCandles = data_candles[0+t][data_candles[0+t].index >= data_candles[i].index[-1]]
+                if lower_timeframe == "weekly":
+                    MT = data_candles[0][data_candles[0].index >= data_candles[i].index[-1]]
+                    df_partialweek = MT[MT.index >= data_candles[i].index[-1]]
+                    if not df_partialweek.empty and len(df_partialweek) == 4:
+                        df = merge_partialweek(df, df_partialweek)
                 open_price = data_candles[i].iloc[-1]["Open"]
                 flips, lastFlip = cycle_dynamics_calculation(lowerTimeframeCandles, open_price, margin)
                 if flips > 4:
@@ -362,13 +392,16 @@ def screener_ema_extensions():
             row["EMA10_now"] = round(retest_bands["EMA10_now"].iloc[-1],1)
             row["EMA10_tmw"] = round(retest_bands["EMA10_tmw"].iloc[-1],1)
             rows.append(row) 
+    except Exception as e:
+        print(e)
         df = pd.DataFrame(rows)
         longs_df = df[(df['P_D_EMA 10'] <= 30) & (df['P_D_EMA 20'] <= 30)].sort_values(by='TimeAway', ascending=False)
         shorts_df = df[(df['P_D_EMA 10'] >= 70) & (df['P_D_EMA 20'] >= 70)].sort_values(by='TimeAway', ascending=False)
         return longs_df, shorts_df
-    except Exception as e:
-        print(e)
-        return pd.DataFrame()
+    df = pd.DataFrame(rows)
+    longs_df = df[(df['P_D_EMA 10'] <= 30) & (df['P_D_EMA 20'] <= 30)].sort_values(by='TimeAway', ascending=False)
+    shorts_df = df[(df['P_D_EMA 10'] >= 70) & (df['P_D_EMA 20'] >= 70)].sort_values(by='TimeAway', ascending=False)
+    return longs_df, shorts_df
 
 
 def calculation_average_deviation(data):
@@ -408,7 +441,7 @@ def calculation_retest_bands_screener(df):
     return pd.DataFrame(rows)
 
 
-def calculation_retest_bands(data):
+def calculation_retest_bands(data, timeframe):
     timeframes = []
     cont = 0
     for df in data:
@@ -416,14 +449,13 @@ def calculation_retest_bands(data):
         rows = []
         k = 0
         df["EMA_10"] = df["Close"].ewm(span=10, adjust=False).mean()
-        df["EMA_25"] = df["Close"].ewm(span=25, adjust=False).mean()
-        df = df[12:]
-        tolerance = 0.0025
-        ema_top = df[['EMA_10', 'EMA_25']].max(axis=1) * (1 + tolerance)
-        ema_bot = df[['EMA_25', 'EMA_10']].min(axis=1) * (1 - tolerance)
+        df = df[10:]
+        tolerance = 0.01
+        if timeframe  == "LT":
+            tolerance = 0.0025
 
         for i in range(len(df)):
-            is_away = (df['Low'].iloc[i] > ema_top.iloc[i]) or (df['High'].iloc[i] < ema_bot.iloc[i])
+            is_away = ((df['Low'].iloc[i] * (1 - tolerance)) > df['EMA_10'].iloc[i]) or ((df['High'].iloc[i] * (1 + tolerance)) < df['EMA_10'].iloc[i])
             if is_away:
                 k += 1
             else:
@@ -582,64 +614,73 @@ def calculation_cycle_peak_expansion_all_symbols():
 
 def calculation_cashsession_dynamics():
     rows = []
-    symbols = getSymbols()
+    symbols = get_hyperliquid_symbols()
     for symbol in symbols:
-        aux_timeframes = getDataStock(symbol) # get data of ticker  
-        timeframes = preparingData(aux_timeframes)
-        data = last_X_years(timeframes, 3)
-        data_HT = data[0].copy()
-        data = getDataStock_LT(symbol)
-        data_LT = data[0].copy()
-        data_MicroT = getDataStock_MT(symbol)
+        print("CASH SESSION", symbol)
+        try:
+            aux_timeframes = getDataStock(symbol) # get data of ticker  
+            timeframes = preparingData(aux_timeframes)
+            print("preparingDataCompleted")
+            data = last_X_years(timeframes, 3)
+            data_HT = data[0].copy()
+            data = getDataStock_LT(symbol)
+            data_LT = data[0].copy()
+            data_MicroT = getDataStock_MT(symbol)
 
-        if not data_HT.empty and not data_LT.empty and not data_MicroT.empty:
-            nameField = ["Return1H", "type1H", "Return15m", "type15m"]
-            timeframes = ["1h","15m"]
-            x = 0
-            row = {}
-            for df in [data_LT, data_MicroT]:
-                data_HT = data_HT[data_HT.index >= df.index[0]]  
-                df = df[df.index >= data_HT.index[0]]            
-                data_HT = data_HT[1:].copy()
-                data_HT[nameField[0+x]] = data_HT["Return"]
-                data_HT[nameField[1+x]] = data_HT["type"]    
-                for i in range(0, len(data_HT)):
-                    aux = data_LT[data_LT.index.date == data_HT.index[i].date()]
-                    idx = data_HT.index[i]
-                    data_HT.loc[idx, nameField[0+x]] = ((aux["Close"].iloc[0]/aux["Open"].iloc[0])-1) * 100
-                    if data_HT.loc[idx, nameField[0+x]] >= 0:
-                        data_HT.loc[idx, nameField[1+x]] = "Green"
-                    else:
-                        data_HT.loc[idx, nameField[1+x]] = "Red"
-
-                Green = data_HT[data_HT[nameField[1+x]] == "Green"] 
-                Green_Green = Green[Green["type"] == "Green"]
-                Green_Green_Beyond = Green_Green[Green_Green["Return"] > Green_Green[nameField[0+x]]]
-                Green_Red= Green[Green["type"] == "Red"]
-                Red = data_HT[data_HT[nameField[1+x]] == "Red"] 
-                Red_Green = Red[Red["type"] == "Green"]
-                Red_Red = Red[Red["type"] == "Red"]
-                Red_Red_Beyond = Red_Red[Red_Red["Return"] < Red_Red[nameField[0+x]]]
-                row["symbol"] = symbol
-                name = "NumGreen" + timeframes[x]
-                row[name] = len(Green)
-                name = "Green " + timeframes[x] + " (GreenDay)"
-                row[name] = round(len(Green_Green)/len(Green),2)
-                name = "Green " + timeframes[x] + " (RedDay)"
-                row[name] = round(len(Green_Red)/len(Green),2)
-                name = "Day higher vs" + timeframes[x] + " (Green)"
-                row[name] = round(len(Green_Green_Beyond)/len(Green_Green),2)
-                name = "NumRed" + timeframes[x]
-                row[name] = len(Red)
-                name = "Red " + timeframes[x] + " (RedDay)"
-                row[name] = round(len(Red_Red)/len(Red),2)
-                name = "Red " + timeframes[x] + " (GreenDay)"
-                row[name] = round(len(Red_Green)/len(Red),2)
-                name = "Day lower vs " + timeframes[x]
-                row[name] = round(len(Red_Red_Beyond)/len(Red_Red),2)
-                x += 1
-            print(row)
-            rows.append(row)
+            if not data_HT.empty and not data_LT.empty and not data_MicroT.empty:
+                nameField = ["Return1H", "type1H", "Return15m", "type15m"]
+                timeframes = ["1h","15m"]
+                x = 0
+                row = {}
+                for df in [data_LT, data_MicroT]:
+                    data_HT = data_HT[data_HT.index >= df.index[0]]  
+                    df = df[df.index >= data_HT.index[0]]           
+                    data_HT = data_HT[1:].copy()
+                    data_HT[nameField[0+x]] = data_HT["Return"]
+                    data_HT[nameField[1+x]] = data_HT["type"]    
+                    for i in range(0, len(data_HT)):
+                        aux = data_LT[data_LT.index.date == data_HT.index[i].date()]
+                        idx = data_HT.index[i]
+                        if not aux.empty:
+                            data_HT.loc[idx, nameField[0+x]] = ((aux["Close"].iloc[0]/aux["Open"].iloc[0])-1) * 100
+                            if data_HT.loc[idx, nameField[0+x]] >= 0:
+                                data_HT.loc[idx, nameField[1+x]] = "Green"
+                            else:
+                                data_HT.loc[idx, nameField[1+x]] = "Red"
+                    print("pre-filtro", len(data_HT))
+                    data_HT = data_HT[abs((data_HT["Close"]/data_HT["Open"])-1) >= 0.0025]
+                    print("filtro completado", len(data_HT))
+                    Green = data_HT[(data_HT[nameField[1+x]]) == "Green"]
+                    Green_Green = Green[Green["type"] == "Green"]
+                    Green_Green_Beyond = Green_Green[Green_Green["Return"] > Green_Green[nameField[0+x]]]
+                    Green_Red= Green[Green["type"] == "Red"]
+                    Red = data_HT[data_HT[nameField[1+x]] == "Red"] 
+                    Red_Green = Red[Red["type"] == "Green"]
+                    Red_Red = Red[Red["type"] == "Red"]
+                    Red_Red_Beyond = Red_Red[Red_Red["Return"] < Red_Red[nameField[0+x]]]
+                    row["symbol"] = symbol
+                    name = "NumGreen" + timeframes[x]
+                    row[name] = len(Green)
+                    name = "Green " + timeframes[x] + " (GreenDay)"
+                    row[name] = round(len(Green_Green)/len(Green),2)
+                    name = "Green " + timeframes[x] + " (RedDay)"
+                    row[name] = round(len(Green_Red)/len(Green),2)
+                    name = "Day higher vs" + timeframes[x] + " (Green)"
+                    row[name] = round(len(Green_Green_Beyond)/len(Green_Green),2)
+                    name = "NumRed" + timeframes[x]
+                    row[name] = len(Red)
+                    name = "Red " + timeframes[x] + " (RedDay)"
+                    row[name] = round(len(Red_Red)/len(Red),2)
+                    name = "Red " + timeframes[x] + " (GreenDay)"
+                    row[name] = round(len(Red_Green)/len(Red),2)
+                    name = "Day lower vs " + timeframes[x]
+                    row[name] = round(len(Red_Red_Beyond)/len(Red_Red),2)
+                    x += 1
+                print(row)
+                rows.append(row)
+        except Exception as e:
+            print(e)
+            break    
         #pillar distintos timeframes y filtrar quedandome a partir del primer dia de data
         # montar las probabilidades segun el primer close de 15min, 30min, 1h, 2h (opcional)
     df = pd.DataFrame(rows)

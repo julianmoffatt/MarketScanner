@@ -4,7 +4,7 @@ from plotly.subplots import make_subplots
 from statistics_calculations import *
 
 def title_stock(fig, stock):
-    fig.update_layout(margin=dict(l=30, r=30, t=75, b=75), title={'text': stock,'x': 0.5,'y': 0.98,'xanchor': 'center','yanchor': 'top', 'font': {'size': 20, 'color': 'purple'}})
+    fig.update_layout(margin=dict(l=55, r=55, t=75, b=80), title={'text': stock,'x': 0.5,'y': 0.98,'xanchor': 'center','yanchor': 'top', 'font': {'size': 20, 'color': 'purple'}})
     return fig
 
 def margin_right(fig, df):
@@ -225,11 +225,10 @@ def screen_strikes_plotly(probabilities, colours, stock):
 
 
 def screen_rsi_plotly(data, stock):
-    timeframes = ["Daily", "Weekly", "Monthly"]
     fig = make_subplots(rows=2, cols=3, vertical_spacing=0.10, horizontal_spacing=0.04, subplot_titles=["DAILY RSI","WEEKLY RSI","MONTHLY RSI"])
 
     for i in range(len(data)):
-        df = data[i]
+        df = data[i].copy()
 
         fig.add_trace(
             go.Scatter(x=df.index, y=df["rsi"], mode="markers", marker=dict(color="steelblue", size=5), showlegend=False),
@@ -241,25 +240,32 @@ def screen_rsi_plotly(data, stock):
         rsi_time = df["rsi"].index[-1]
         rsi_value = df["rsi"].iloc[-1]
 
-        p95 = df["rsi"].quantile(0.95)
-        p50 = df["rsi"].quantile(0.50)
-        p05 = df["rsi"].quantile(0.05)
-        fig.add_hline(y=p95, line_color="black", line_width=3, row=1, col=i + 1)
-        fig.add_hline(y=p50, line_color="gray", line_width=2, row=1, col=i + 1)
-        fig.add_hline(y=p05, line_color="black", line_width=3, row=1, col=i + 1)        
+        percentil_value = [df["rsi"].quantile(0.95), df["rsi"].quantile(0.50), df["rsi"].quantile(0.05)]
+        percentil_colour = ["black", "gray", "black"]
+        percentil_name = ["p95", "p50", "p05"]
 
+        for k in range(0,3):
+            annotation = "(" + str(round(percentil_value[k],1)) +") "+ percentil_name[k] 
+            fig.add_hline(line_width=2, row=1, col = i+1, annotation_position="top right", annotation_font_size=13, annotation_font_color="black",
+                y = percentil_value[k],  
+                line_color = percentil_colour[k], 
+                annotation_text = annotation)
+            
         fig.add_trace(
             go.Scatter(x=[rsi_time], y=[rsi_value], mode="markers", marker=dict(color="orange", size=15), showlegend=False),
-            row=1,
-            col=i + 1
+            row = 1,
+            col = i+1
         )
-        fig.add_hline(y=rsi_value, line_color="orange", line_width=2, row=1, col=i + 1) 
-
-        fig.update_xaxes(
-            title_text=f"RSI {timeframes[i]}: {int(rsi_value)}",
-            row=1,
-            col=i + 1
-        )
+        
+        fig.add_hline(y=rsi_value, line_color="#E9B300", line_dash = 'dot', line_width=5, row=1, col= i+1,
+                annotation_text=f" {rsi_value:.1f}%",
+                annotation_position="right", 
+                annotation_font_size=13,
+                annotation_font_color="blue")
+        total_time = df.index[-1] - df.index[0]            
+        padding = total_time / 4
+        new_x_limit = df.index[-1] + padding
+        fig.update_xaxes(range=[df.index[0], new_x_limit], row=1, col=i+1)
     fig.update_layout(margin=dict(l=30, r=30, t=75, b=30))
     fig = title_stock(fig, stock)
     return fig
@@ -282,7 +288,6 @@ def screen_ema_extension_plotly(ema_extensions, stock, k):
         e = 0
         EMAS = ["10","20"]
         k = 1
-
 
     for a in range (0,2*(len(timeframes))):
         current_point = ema_extensions[t][col_name_ema[e]].iloc[-1]
@@ -309,16 +314,15 @@ def screen_ema_extension_plotly(ema_extensions, stock, k):
         for x in range (1,3):
             col_name = col_name_ema[x + k]
             df = ema_extensions[i]
-            ext = df[col_name]
+            df_aux = df[(df[col_name] > df[col_name].quantile(0.004)) & (df[col_name] < df[col_name].quantile(0.996))]
+            y_range = df_aux[col_name]
             current_ext = df[col_name].iloc[-1]
             p95 = df[col_name].quantile(0.95)
             p05 = df[col_name].quantile(0.05)
-            low, high = np.percentile(ext, [0.05, 99.95])
-            y_range = np.clip(ext, low, high)
-            fechas = df.index
+            fechas = df_aux.index
 
-            ext_high_pts = df[df[col_name_ema_high[x + k]] >= p95][col_name_ema_high[x + k]]
-            ext_low_pts = df[df[col_name_ema_low[x + k]] <= p05][col_name_ema_low[x + k]]
+            ext_high_pts = df[(df[col_name_ema_high[x + k]] >= p95) & (df[col_name_ema_high[x + k]] < df[col_name].quantile(0.996))][col_name_ema_high[x + k]]
+            ext_low_pts = df[(df[col_name_ema_low[x + k]] <= p05) & (df[col_name_ema_high[x + k]] > df[col_name].quantile(0.004))][col_name_ema_low[x + k]]
             fig.add_trace(go.Scatter(x=ext_high_pts.index, y=ext_high_pts, mode="markers", marker=dict(size=4, color="red"), showlegend=False), row=x, col=i + 1)
             fig.add_trace(go.Scatter(x=ext_low_pts.index, y=ext_low_pts, mode="markers", marker=dict(size=4, color="red"), showlegend=False), row=x, col=i + 1)
 
@@ -347,11 +351,39 @@ def screen_ema_extension_plotly(ema_extensions, stock, k):
                 row=x,
                 col=i + 1
             )
+            
+            values = [p95, 0, p05]
+            colours = ["black", "purple", "black"]
+            percentilText = ["p95", "EMA", "p05"]
+            placement = ["top right", "top right", "bottom right"]
+            for j in range(3):
+                if percentilText[j] == "EMA":
+                    annotation = percentilText[j]
+                else:
+                    annotation = "(" + str(round(values[j],1)) + ") " + percentilText[j]
+                fig.add_hline(opacity=0.7, row=x, col = i+1, 
+                    annotation_font_size=13, 
+                    annotation_font_color="black",
+                    y=values[j],  
+                    line_color=colours[j], 
+                    annotation_text= annotation,
+                    annotation_position=placement[j],
+                    annotation_xshift=2)
 
-            fig.add_hline(y=p95, line_color="black", opacity=0.7, row=x, col=i + 1)
-            fig.add_hline(y=0, line_color="purple", opacity=0.6, row=x, col=i + 1)
-            fig.add_hline(y=p05, line_color="black", opacity=0.7, row=x, col=i + 1)
-    fig = title_stock(fig, stock)
+            fig.add_hline(y=current_ext, line_color="#E9B300", line_dash = 'dot', line_width=3, row=x, col= i+1,
+                annotation_text=f" {round(current_ext,1):.1f}%",
+                annotation_position="right", 
+                annotation_font_size=13,
+                annotation_font_color="blue",
+                annotation_xshift=2) 
+            
+            total_time = df_aux.index[-1] - df_aux.index[0]            
+            padding = total_time / 5
+            new_x_limit = df_aux.index[-1] + padding
+            new_x_start = df_aux.index[0] - (padding/5)
+            fig.update_xaxes(range=[new_x_start, new_x_limit], row=x, col=i+1)
+            
+    fig = title_stock(fig, stock)    
     return fig
 
 
@@ -368,54 +400,61 @@ def screen_screener_ema_extensions(longs, shorts):
     return fig
 
 
-def screen_deviations(data, stock):
+def screen_deviations(data, stock): 
     fig = make_subplots(
         rows=2, cols=3, 
-        vertical_spacing=0.12, 
+        vertical_spacing=0.11, 
         horizontal_spacing=0.04, 
         subplot_titles=["DAILY DEVIATIONS (GREEN)", "WEEKLY DEVIATIONS (GREEN)", "MONTHLY DEVIATIONS (GREEN)", "DAILY DEVIATIONS (RED)", "WEEKLY DEVIATIONS (RED)", "MONTHLY DEVIATIONS (RED)"])
-    extra_days = 200
+    #extra_days = 200
     for i in range(len(data)):
         df = data[i]
         df_green = df[df["type"] == "Green"]
         df_red = df[df["type"] == "Red"]
         k = 0
-        current_time = df.index[-1] + pd.Timedelta(days=extra_days)
+        #current_time = df.index[-1] + pd.Timedelta(days=extra_days)
         candle = df.iloc[-1]
         current_value = [((candle['Open'] - candle['Low']) / candle['Open'])*100, ((candle['High'] - candle['Open']) / candle['Open'])*100]
         cont = 0
 
         for df_for in [df_green, df_red]:      
             if current_value[cont] < df_for["Deviation"].quantile(0.90):
-                ext = df_for["Deviation"]
-                low, high = np.percentile(ext, [0.5, 95])
-                y_range = np.clip(ext, low, high)
+                ext = df_for[df_for["Deviation"] <= df_for["Deviation"].quantile(0.95)]
+                y_range = ext["Deviation"]
             elif current_value[cont] >= df_for["Deviation"].quantile(0.90):
-                ext = df_for["Deviation"]
-                low, high = np.percentile(ext, [0.5, 99.5])
-                y_range = np.clip(ext, low, high)
+                ext = df_for[df_for["Deviation"] <= df_for["Deviation"].quantile(0.99)]
+                y_range = ext["Deviation"]
             
             fig.add_trace(go.Scatter(x=df_for.index, y=y_range, mode="markers", marker=dict(color="steelblue", size=5), showlegend=False, opacity=0.75),
-                row=1+k, col=i + 1) 
+                row=1+k, col=i + 1)        
             
             percentil_name = ["p90", "p80", "p50", "p20", "p10"]
-            percentil_color = ["black", "black", "red", "black", "black"]
+            percentil_color = ["black", "black", "purple", "black", "black"]
             percentil_value = [0.90, 0.80, 0.50, 0.20, 0.10]
             percentil_location = ["top right", "top right", "top right", "top right", "bottom right"]
             for p in range (0, len(percentil_value)):
                 percentil = df_for["Deviation"].quantile(percentil_value[p])
+                annotation=""
+                if percentil_value[p] > 0.2:
+                    annotation = "(" + str(round(percentil,1)) +") "+ percentil_name[p] 
+                else:
+                    annotation = percentil_name[p]
                 fig.add_hline(line_width=2, row=1+k, col = i+1, annotation_position=percentil_location[p], annotation_font_size=13, annotation_font_color="black",
                 y=percentil,  
                 line_color=percentil_color[p], 
-                annotation_text=percentil_name[p]) 
+                annotation_text=annotation) 
             fig.add_hline(y=current_value[cont], line_color="#E9B300", line_dash = 'dot', line_width=5, row=1+k, col=i + 1,
                 annotation_text=f" {current_value[cont]:.2f}%",
                 annotation_position="right", 
                 annotation_font_size=13,
                 annotation_font_color="blue")
-            fig.add_trace(go.Scatter(x=[current_time], y=[current_value[cont]], mode="markers", marker=dict(color="#FFC400", size=14), showlegend=False), row=1+k, col=i + 1)  
-            k = k + 1
+            fig.add_trace(go.Scatter(x=[df_for.index[-1]], y=[current_value[cont]], mode="markers", marker=dict(color="#FFC400", size=14), showlegend=False), row=1+k, col=i + 1)  
             cont = cont + 1
+            total_time = df_for.index[-1] - df_for.index[0]            
+            padding = total_time / 5
+            new_x_limit = df_for.index[-1] + padding
+            fig.update_xaxes(range=[df_for.index[0], new_x_limit], row=1+k, col=i+1)
+            k = k + 1
 
     fig = title_stock(fig, stock)
     return fig
@@ -423,12 +462,12 @@ def screen_deviations(data, stock):
 
 def screen_ema_retests(data, stock, k):
     if k == 0:
-        timeframes = ["DAILY BANDS RETEST","WEEKLY BANDS RETEST"]
+        timeframes = ["DAILY MEAN REVERSION EMA 10","WEEKLY MEAN REVERSION EMA 10"]
     elif k == 1:
-        timeframes = ["1H BANDS RETEST","4H BANDS RETEST"]
-    fig = make_subplots(rows=2, cols=2, vertical_spacing=0.10, horizontal_spacing=0.04, subplot_titles=timeframes)
+        timeframes = ["1H MEAN REVERSION EMA 10","4H MEAN REVERSION EMA 10"]
+    fig = make_subplots(rows=1, cols=2, vertical_spacing=0.10, horizontal_spacing=0.04, subplot_titles=timeframes)
 
-    for i in range(len(data)-1):
+    for i in range(len(data)-1+k):
         l = len(data[i])-1
         df = data[i][0:l]
         current_time = data[i]["Date"].iloc[-1]
@@ -438,21 +477,25 @@ def screen_ema_retests(data, stock, k):
             row=1,
             col=i + 1
         )
+        fig.update_yaxes(range=[((df["TimeAway"].max()/10)*-1), df["TimeAway"].max()], row=1+k, col=i+1) 
         percentil_name = ["p95", "p80", "p50", "p20"]
         percentil_color = ["black", "black", "red", "black"]
         percentil_value = [0.95, 0.80, 0.50, 0.20]
         percentil_location = ["top right", "top right", "top right", "bottom right"]
         for p in range (0, len(percentil_value)):
             percentil = df["TimeAway"].quantile(percentil_value[p])
+            annotation = "(" + str(round(percentil,1)) +") " + percentil_name[p] 
             fig.add_hline(line_width=2, row=1, col = i+1, annotation_position=percentil_location[p], annotation_font_size=13, annotation_font_color="black",
                 y=percentil,  
                 line_color=percentil_color[p], 
-                annotation_text=percentil_name[p])   
+                annotation_text= annotation,
+                annotation_xshift=10)   
         fig.add_hline(y=current_value, line_color="#E9B300", line_dash = 'dot', line_width=4, row=1, col=i + 1,
                 annotation_text=f" {current_value:.0f}",
                 annotation_position="right", 
                 annotation_font_size=13,
-                annotation_font_color="blue")
+                annotation_font_color="blue",
+                annotation_xshift=15)
         fig.add_trace(go.Scatter(x=[current_time], y=[current_value], mode="markers", marker=dict(color="#FFC400", size=14), showlegend=False), row=1, col=i + 1)  
                
     fig.update_layout(margin=dict(l=40, r=40, t=75, b=30))
@@ -462,7 +505,7 @@ def screen_ema_retests(data, stock, k):
 
 def screen_last_flip_open(data, stock):
     try:
-        fig = make_subplots(rows=2, cols=3, vertical_spacing=0.10, horizontal_spacing=0.04, subplot_titles=["Last Daily Flip on Weekly Open","Last Daily Flip on Monthly Open","Last Daily Flip on Quarterly Open", "Last Weekly Flip on Monthly Open","Last Weekly Flip on Quarterly Open", "Last Weekly Flip on Yearly Open"])
+        fig = make_subplots(rows=2, cols=3, vertical_spacing=0.10, horizontal_spacing=0.04, subplot_titles=["Day Last Flip of Weekly Open","Day Last Flip of Monthly Open","Day Last Flip of Quarterly Open", "Week Last Flip of Monthly Open","Week Last Flip of Quarterly Open", "Week Last Flip of on Yearly Open"])
         r = 1
         c = 1
         for i in range(len(data)):
@@ -470,7 +513,7 @@ def screen_last_flip_open(data, stock):
                 c = 1
                 r = 2
             l = len(data[i])-1
-            df = data[i][0:l]
+            df = data[i][0:l].copy()
             current_time = data[i].index[-1]
             current_value = data[i]["LastFlip"].iloc[-1]
             if i != 0 and i != 3:
@@ -482,16 +525,24 @@ def screen_last_flip_open(data, stock):
                 percentil_name = ["p95", "p80", "p50", "p20"]
                 percentil_color = ["black", "black", "purple", "black"]
                 percentil_value = [0.95, 0.80, 0.50, 0.20]
-                percentil_location = ["top right", "top right", "top right", "bottom right"]
+                percentil_location = ["top right", "bottom right", "top right", "bottom right"]
                 for p in range (0, len(percentil_value)):
                     percentil = df["LastFlip"].quantile(percentil_value[p])
+                    annotation = percentil_name[p] + " (" + str(round(percentil,1)) + ")"
                     fig.add_hline(line_width=2, row=r, col = c, annotation_position=percentil_location[p], annotation_font_size=13, annotation_font_color="black",
                         y=percentil,  
                         line_color=percentil_color[p], 
-                        annotation_text=percentil_name[p])
-    
+                        annotation_text=annotation)
+                df.index = pd.to_datetime(df.index)
                 fig.add_hline(y=current_value, line_color="#E9B300", line_dash = 'dot', line_width=4, row=r, col = c, annotation_text=f" {current_value:.0f}", annotation_position="right", annotation_font_size=13, annotation_font_color="blue")
                 fig.add_trace(go.Scatter(x=[current_time], y=[current_value], mode="markers", marker=dict(color="#FFC400", size=14), showlegend=False), row=r, col = c)  
+                total_time = df.index[-1] - df.index[0]  
+                if len(df) < 10:
+                    padding = total_time / 2    
+                else:
+                    padding = total_time / 4
+                new_x_limit = df.index[-1] + padding
+                fig.update_xaxes(range=[df.index[0], new_x_limit], row=r, col=c)
             else:
                 orden = [1, 2, 3, 4, 5, 6, 7]
                 df_counts = df["LastFlip"].value_counts().reindex(orden).fillna(0)
@@ -500,7 +551,6 @@ def screen_last_flip_open(data, stock):
                     go.Bar(
                         x=df_pct.index, 
                         y=df_pct.values, 
-                        name="Probabilidad %",
                         marker_color='steelblue',
                         opacity=0.8,
                         text=[f"{val:.1f}%" for val in df_pct.values],
@@ -545,13 +595,12 @@ def screen_gaps_stock(df, stock): # gaps abiertos, ratio de filling y closing se
         print(e)
 
 
-
 def screen_cycle_correlations(df1, df2, stock):
     df_green1 = df1[df1["Direction"] == "Green"]
     df_red1 =  df1[df1["Direction"] == "Red"]
     df_green2 = df2[df2["Direction"] == "Green"]
     df_red2 =  df2[df2["Direction"] == "Red"]
-    fig = make_subplots(rows=2, cols=4, vertical_spacing=0.10, horizontal_spacing=0.04, subplot_titles=["Num Flips x Returns (Green)[MONTHLY]", "Day Last Flip x Returns (Green)[MONTHLY]", "Num Flips x Returns (Red)[MONTHLY]", "Day LastFlip x Returns (Red)[MONTHLY]", "Num Flips x Returns (Green)[QUARTERLY]", "Week Last Flip x Returns (Green)[QUARTERLY]", "Num Flips x Returns (Red)[QUARTERLY]", "Week LastFlip x Returns (Red)[QUARTERLY]"])
+    fig = make_subplots(rows=2, cols=4, vertical_spacing=0.10, horizontal_spacing=0.04, subplot_titles=["Daily Close Flips x Returns (Green)[MONTHLY OPEN]", "Day Last Flip x Returns (Green)[MONTHLY OPEN]", "Daily Close Flips x Returns (Red)[MONTHLY OPEN]", "Day Last Flip x Returns (Red)[MONTHLY OPEN]", "Weekly Close Flips x Returns (Green)[QUARTERLY OPEN]", "Week Last Flip x Returns (Green)[QUARTERLY OPEN]", "Weekly Close Flips x Returns (Red)[QUARTERLY OPEN]", "Week Last Flip x Returns (Red)[QUARTERLY OPEN]"])
     r, c = 1, 1
     color = "green"
     for df in [df_green1, df_red1, df_green2, df_red2]:
@@ -591,7 +640,10 @@ def screen_lastflip_x_peak(df1, df2, stock):
                 thickness=1.5,
                 width=5 # Ancho del tope de la barra de error
             ), mode="markers", marker=dict(color="black", size=12), showlegend=False), row=r, col=1)  
-            df_sorted = df.sort_values(by='LastFlip', ascending=True)
+            if r == 1:
+                df_sorted = df.sort_values(by='Return', ascending=False)
+            else:
+                df_sorted = df.sort_values(by='Return', ascending=True) 
             fig_open_gaps = table_fig_variation(df_sorted)
             fig.add_trace(fig_open_gaps.data[0], row=r, col=2) 
             r = r+1     
