@@ -49,6 +49,7 @@ ticker_options = [
     # TECH GIANTS & SEMIS
     {'label': '🚀 ASTS - SpaceMobile', 'value': 'ASTS'},
     {'label': '⛏️ IREN - Iris Energy', 'value': 'IREN'},
+    {'label': '⚡ NBIS', 'value': 'NBIS'},
     {'label': '💾 MU - Micron Technology', 'value': 'MU'},
     {'label': '🟢 NVDA - Nvidia', 'value': 'NVDA'},
     {'label': '🔍 GOOGL - Alphabet', 'value': 'GOOGL'},
@@ -135,6 +136,7 @@ app.layout = html.Div([
         dcc.Tab(label='EMA 50/200', value='tab-5', style=tab_style, selected_style=tab_selected_style),
         dcc.Tab(label='FLIPS(D)', value='tab-9', style=tab_style, selected_style=tab_selected_style),
         dcc.Tab(label='FLIPS(W)', value='tab-10', style=tab_style, selected_style=tab_selected_style),
+        dcc.Tab(label='FLIPS(M)', value='tab-28', style=tab_style, selected_style=tab_selected_style),
         dcc.Tab(label='+FLIPS(D)', value='tab-18', style=tab_style, selected_style=tab_selected_style),
         dcc.Tab(label='+FLIPS(W)', value='tab-19', style=tab_style, selected_style=tab_selected_style),
         dcc.Tab(label='LAST FLIP', value='tab-14', style=tab_style, selected_style=tab_selected_style),
@@ -149,8 +151,11 @@ app.layout = html.Div([
         dcc.Tab(label='LFxPeak', value='tab-21', style=tab_style, selected_style=tab_selected_style),
         dcc.Tab(label='Peaks', value='tab-15', style=tab_style, selected_style=tab_selected_style),
         dcc.Tab(label='Gaps', value='tab-16', style=tab_style, selected_style=tab_selected_style),
+        dcc.Tab(label='Volatility', value='tab-26', style=tab_style, selected_style=tab_selected_style),
+        dcc.Tab(label='Returns', value='tab-27', style=tab_style, selected_style=tab_selected_style),
         dcc.Tab(label='CashSession', value='tab-25', style=tab_style, selected_style=tab_selected_style),
-        dcc.Tab(label='Screener', value='tab-12', style=tab_style, selected_style=tab_selected_style)#,
+        dcc.Tab(label='Screener', value='tab-12', style=tab_style, selected_style=tab_selected_style),
+        dcc.Tab(label='Momentum', value='tab-29', style=tab_style, selected_style=tab_selected_style)#,
         #dcc.Tab(label='Test', value='tab-26', style=tab_style, selected_style=tab_selected_style)
     ]
     ),
@@ -214,6 +219,9 @@ def render_content(stock, tab, n_clicks):
     data = last_X_years(data_aux, 60)
     current_stock = getCurrentStockPos(stock)
 
+    #pe_ntm = yf.Ticker(stock).info.get("forwardPE")
+    #print(pe_ntm)
+
     if tab == 'tab-1':
         fig = screen_daily_chart(data)
         return fig
@@ -221,6 +229,7 @@ def render_content(stock, tab, n_clicks):
         fig = screen_weekly_chart(data)
         return fig
     elif tab == 'tab-3':
+        calculation_open_momentum(data)
         fig = screen_monthly_chart(data)
         return fig
     elif tab == 'tab-4':
@@ -262,7 +271,7 @@ def render_content(stock, tab, n_clicks):
         return screen_last_flip_open(data, stock)
     elif tab == 'tab-15':
         df_tab_15 = load_data("excels/peaksoverview")
-        colours_tab_15 = colour_painting_simple_table(df_tab_15, current_stock)
+        colours_tab_15 = colour_painting_detailed_flips(df_tab_15, current_stock)
         return table_fig(df_tab_15, colours_tab_15)
     elif tab == 'tab-16':
         df_tab_16 = load_data("excels/gapsallsymbols")
@@ -295,17 +304,31 @@ def render_content(stock, tab, n_clicks):
         fig_tab_21 = screen_lastflip_x_peak(df_tab_21_1, df_tab_21_2, stock)
         return fig_tab_21
     elif tab == 'tab-23':
-        data_tab_23 = getDataStock_LT(stock)
+        data_tab_23 = getDataStock_LT(stock, True)
         df_tab_23 = calculation_ema_extension(data_tab_23)
         return screen_ema_extension_plotly(df_tab_23, stock, 10)
     elif tab == 'tab-24':
-        data_tab_24 = getDataStock_LT(stock)
+        data_tab_24 = getDataStock_LT(stock, True)
         df_tab_24 = calculation_retest_bands(data_tab_24, "LT")
         return screen_ema_retests(df_tab_24, stock, 1)
     elif tab == 'tab-25':
         data_tab_25 = calculation_cashsession_dynamics()
         print("Llega a volver")
         return table_fig_variation(data_tab_25)
+    elif tab == 'tab-26':
+        data_tab_26 = screen_volatility(data, stock)
+        return data_tab_26
+    elif tab == 'tab-27':
+        data_tab_27 = screen_returns(data, stock)
+        return data_tab_27
+    elif tab == 'tab-28':
+        df_tab_28 = load_data("excels/flipsmonthly")
+        df_tab_28 = load_data("excels/flips_detail_monthly")
+        colours_tab_28 = colour_painting_detailed_flips(df_tab_28, current_stock)
+        return table_fig(df_tab_28, colours_tab_28)
+    elif tab == 'tab-29':
+        data_tab_29 = calculation_open_momentum(data)
+        return screen_open_momentum(data_tab_29)
     #elif tab == 'tab-26':
     #    df = test_strategy_all_symbols()
     #    return table_fig_variation(df)

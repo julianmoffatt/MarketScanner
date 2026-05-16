@@ -2,10 +2,9 @@ import yfinance as yf
 import pandas as pd
 import numpy as np
 import time
-import random
 
-def getSymbols():
-    symbols = ["^GSPC", "ASTS", "IREN", "MU", "NVDA", "GOOGL", "AAPL", "AMZN", "AMD", "MSFT", "NFLX", "META", "ORCL", "INTC", "TSLA", "BABA", "BIDU", "JD", "PLTR",  "MSTR", "GC=F", "SI=F", "CL=F", "BTC-USD", "ETH-USD"]
+def getSymbols(): #"ASTS", "IREN", "NBIS", 
+    symbols = ["^GSPC", "ASTS", "MU", "NVDA", "GOOGL", "AAPL", "AMZN", "AMD", "MSFT", "NFLX", "META", "ORCL", "INTC", "TSLA", "BABA", "BIDU", "JD", "PLTR",  "MSTR", "GC=F", "SI=F", "CL=F", "BTC-USD", "ETH-USD"]
     return symbols
 
 def get_hyperliquid_symbols():
@@ -40,7 +39,7 @@ def valid_stock(stock):
 def getDataframesDatabase():
     symbols = getSymbols()
     for symbol in symbols:
-        time.sleep(2) 
+        time.sleep(1) 
         name = "excels/dataframe_symbol/" + symbol + ".csv"
         try:
             stock_daily = pd.read_csv(name, index_col=0, parse_dates=True, date_format='%Y-%m-%d')
@@ -78,8 +77,7 @@ def getDataStock(symbol):
     return [stock_daily, stock_weekly, stock_monthly]
 
 
-def getDataStock_LT(symbol):
-    time.sleep(2) 
+def getDataStock_LT(symbol, prepost):
     name = "excels/dataframe_symbol_LT/" + symbol + ".csv"
     load = True
     try:
@@ -88,7 +86,7 @@ def getDataStock_LT(symbol):
             data_1H = pd.read_csv(name, header=[0, 1], index_col=0, parse_dates=True)
             data_1H.columns = data_1H.columns.get_level_values(0)
     except FileNotFoundError:
-        data_1H = yf.download(tickers = symbol, period = "max", interval = "1h", prepost = True)
+        data_1H = yf.download(tickers = symbol, period = "max", interval = "1h", prepost = prepost)
         load = False
     if isinstance(data_1H.columns, pd.MultiIndex):
         data_1H.columns = data_1H.columns.get_level_values(0)
@@ -134,8 +132,10 @@ def preparingData(data):
             df["type"] = np.where(df["Close"] > df["Last_Close"], "Green", "Red")
             df["rsi"] = rsi_tradingview(df['Close'])
             df["Return"] = round(((df["Close"] / df["Last_Close"])-1)*100,1)
-            df["Volatility"] = abs(1-(df["High"]/df["Low"]))
+            df["Volatility"] = np.abs(1-(df["High"]/df["Low"]))*100
             df['Volatility_Rolling'] = df["Volatility"].ewm(alpha=1/14, adjust=False).mean()
+            df["Vol_Raw"] = np.log(df["High"] / df["Low"]) * 100
+            df["Vol_EMA"] = df["Vol_Raw"].ewm(span=14, adjust=False).mean()
             df["EMA_10"] = df["Close"].ewm(span=10, adjust=False).mean()
             df["EMA_25"] = df["Close"].ewm(span=10, adjust=False).mean()
         #df["Upper_wick"] = df["High"] - df[["Open", "Close"]].max(axis=1)
@@ -149,12 +149,12 @@ def create_hightimeframes(timeframes, lower_timeframe):
     if lower_timeframe == "daily":
         timeframes.append(df_quarters)
         return timeframes
-    elif lower_timeframe == "weekly":
+    elif lower_timeframe == "weekly" or lower_timeframe == "monthly":
         timeframes.append(df_quarters)
         timeframes.append(df_years)
         return timeframes
-    
 
+    
 def merge_partialweek(df, df_partialweek):
     row_data = {'Open':   df_partialweek['Open'].iloc[0],'High':   df_partialweek['High'].max(),'Low':    df_partialweek['Low'].min(),'Close':  df_partialweek['Close'].iloc[-1],'Volume': df_partialweek['Volume'].sum()}
     row_data["Volatility"] = abs(1-(df["High"]/df["Low"]))

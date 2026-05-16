@@ -100,56 +100,86 @@ def calculation_Rsi(data):
         cont = cont + 1
     return timeframes
 
+
+def append_values_row(row, df, num):
+    total = sum(df.values())
+    for i in range(num):
+        if total > 0:
+            row.append(round((df[i]/total)*100,1))
+        else:
+            row.append(0)
+    return row
+
    
-# calculations of flips of a dataframe data around a given open
-def cycle_dynamics_calculation(df, open, marginK):  
+def cycle_dynamics_calculation(symbol, df, open, marginK, timeframe):  
     try:
-        flips, lastFlip, side, margin = 0, 1, 0, 0
+        timeframe = timeframe.upper()
+        print(timeframe)
+        if timeframe == "WEEKLY":
+            m = 0.8
+        elif timeframe == "MONTHLY":
+            m = 0.02
+        elif timeframe == "QUARTERLY":
+            m = 0.025
+        elif timeframe == "YEARLY": 
+            m = 0.03
+        flips, lastFlip, side = 0, 1, 0
         sides = {1:0, 0:1}
         if df.iloc[0]["Close"] >= open:
             side = 1
         else:
             side = 0
         for k in range (1, len(df)):
-            margin = (open * (df.iloc[k]["Volatility_Rolling"] * marginK))
-            close_fixed_bull = df.iloc[k]["Close"] - margin
-            close_fixed_bear = df.iloc[k]["Close"] + margin
-            if (close_fixed_bear / df.iloc[k]["Close"]) <= 1.005:
-                close_fixed_bull = df.iloc[k]["Close"] * 0.995
-                close_fixed_bear = df.iloc[k]["Close"] * 1.005
+            vol_ema = df.iloc[k]["Vol_EMA"]
+            aux_margin = np.exp(vol_ema * marginK / 100)
+            if aux_margin > 1.03:
+                upper_threshold = open * 1.025
+                lower_threshold = open * 0.975
+            elif aux_margin < m:
+                upper_threshold = open * (1 + m)
+                lower_threshold = open * (1 - m)
+            else:
+                upper_threshold = open * np.exp(vol_ema * marginK / 100)
+                lower_threshold = open * np.exp(-vol_ema * marginK / 100)
 
-            if ((close_fixed_bull > open) and (side == 0)) or ((close_fixed_bear < open) and (side == 1)):
+            if ((df.iloc[k]["Close"] > upper_threshold) and (side == 0)) or ((df.iloc[k]["Close"] < lower_threshold) and (side == 1)):
                 side = sides[side]
                 flips = flips + 1
-                lastFlip = k + 1
-                print("FLIP", df.index[k], df.iloc[k]["Close"])
-        print("Margin to count the flip", margin)
+                lastFlip = k + 1                
+                print(symbol, "|| FLIP", " || ", df.index[k], " || ", df.iloc[k]["Close"], "|| Margin to count the flip", round(((upper_threshold - open)/open)*100, 2), " || ", round(vol_ema,1), "(", round(aux_margin,1), ")")
         return flips, lastFlip
     except Exception as e:
         print(e) 
 
 
-def cycle_dynamics(data, lower_timeframe):
+def cycle_dynamics(symbol, data, lower_timeframe):
+    timeframe = ["WEEKLY", "MONTHLY", "QUARTERLY"]
     parameters = []
     if lower_timeframe == "daily":
         timeframe = ["WEEKLY", "MONTHLY", "QUARTERLY"]
-        margin = 0.1
+        margin = 0.125
         t = 0
         parameters = [pd.Timedelta(days=7), pd.offsets.MonthBegin(1), pd.offsets.MonthBegin(3)]
-        LT = data[t][14:].copy()
     elif lower_timeframe == "weekly":
         timeframe = ["MONTHLY", "QUARTERLY", "YEARLY"]
         margin = 0.075
         t = 1
         parameters = [pd.offsets.MonthBegin(1), pd.offsets.MonthBegin(3), pd.offsets.MonthBegin(12)]
-        LT = data[t][14:].copy()
+    elif lower_timeframe == "monthly":
+        timeframe = ["QUARTERLY", "YEARLY"]
+        margin = 0.05
+        t = 2
+        parameters = [pd.offsets.MonthBegin(3), pd.offsets.MonthBegin(12)]
+    
+    LT = data[t][14:].copy()
     timeframes_cycles = []
     end = []
-    end.append(pd.to_datetime((data[1].index[-1] + parameters[0]), utc=True))
-    end.append(pd.to_datetime((data[2].index[-1] + parameters[1]), utc=True))
-    end.append(pd.to_datetime((data[3].index[-1] + parameters[2]), utc=True))
+    for k in range(len(parameters)):
+        end.append(pd.to_datetime((data[k+1+t].index[-1] + parameters[k]), utc=True))
    
+    p = 0
     for i in range (1+t, len(data)):
+        
         HT = data[i].copy()
         LT = LT[LT.index < end[i-1-t]]
         MT = pd.DataFrame()
@@ -157,6 +187,7 @@ def cycle_dynamics(data, lower_timeframe):
             MT = data[0][14:].copy()
         
         cycle = pd.DataFrame(columns=["Date", "Open", "Flips", "LastFlip", "Direction", "Return"])
+
         for x in range(0, len(HT)-1):
             df = LT[(LT.index >= HT.index[x]) & (LT.index < HT.index[x+1])]
             if df.empty:
@@ -168,7 +199,7 @@ def cycle_dynamics(data, lower_timeframe):
             print(timeframe[i-1-t], "| OPEN:", HT.iloc[x]["Open"], "| CLOSE:", HT.iloc[x]["Close"], "| DATE:", HT.index[x])
             if lower_timeframe == "weekly":
                 print(df)
-            params = cycle_dynamics_calculation(df, HT.iloc[x]["Open"], margin)
+            params = cycle_dynamics_calculation(symbol, df, HT.iloc[x]["Open"], margin, timeframe[p])
             cycle.loc[len(cycle)] = [HT.index[x], round(HT.iloc[x]["Open"], 1), params[0], params[1], HT.iloc[x]["type"], HT.iloc[x]["Return"]]
 
         df = LT[(LT.index >= HT.index[-1])]
@@ -177,10 +208,11 @@ def cycle_dynamics(data, lower_timeframe):
                 df_partialweek = MT[(MT.index >= HT.index[x]) & (MT.index < df.index[0])]
                 if not df_partialweek.empty and len(df_partialweek) == 4:
                     df = merge_partialweek(df, df_partialweek)
-            params = cycle_dynamics_calculation(df, HT.iloc[-1]["Open"], margin)
+            params = cycle_dynamics_calculation(symbol, df, HT.iloc[-1]["Open"], margin, timeframe[p])
             cycle.loc[len(cycle)] = [HT.index[-1], round(HT.iloc[-1]["Open"],1), params[0], params[1], HT.iloc[x]["type"], HT.iloc[x]["Return"]]
         cycle.set_index("Date", inplace=True)
         timeframes_cycles.append(cycle)
+        p += 1
     return timeframes_cycles
 
 
@@ -194,74 +226,104 @@ def dataframe_candle_split(data):
 
 
 def calculation_cycle_flips_all_symbols(lower_timeframe, symbols):
-    timeframes_name = ["weekly", "monthly", "quarterly"]
-    if lower_timeframe == "daily":
+    try:
         timeframes_name = ["weekly", "monthly", "quarterly"]
-    elif lower_timeframe == "weekly":
-        timeframes_name = ["monthly", "quarterly", "yearly"]
-    columns = []
-    columns.append("Stock")
-    for i in range (0,3):
-        columns.append(str(i) + " " + timeframes_name[0] + "_F")
-    for i in range (0,5):
-        columns.append(str(i) + " " + timeframes_name[1] + "_F")
-    columns.append("LF" + timeframes_name[1] + "_p50") 
-    for i in range (0,5):
-        columns.append(str(i) + " " + timeframes_name[2] + "_F")
-    columns.append("LF" + timeframes_name[2] + "_p50") 
-    df = pd.DataFrame(columns=columns)
-    df_detail = pd.DataFrame(columns=columns)
-
-    for symbol in symbols:
-        print(symbol)
-        aux_timeframes = getDataStock(symbol)    
-        aux_timeframes_2= last_X_years(aux_timeframes, 25)
-        timeframes = create_hightimeframes(aux_timeframes_2, lower_timeframe)
-        data_candles = preparingData(timeframes) 
-        dfs = cycle_dynamics(data_candles, lower_timeframe)
-        counts_A = dfs[0]["Flips"].value_counts().reindex(range(5), fill_value=0).to_dict()
-        counts_B = dfs[1]["Flips"].value_counts().reindex(range(10), fill_value=0).to_dict()
-        counts_C = dfs[2]["Flips"].value_counts().reindex(range(10), fill_value=0).to_dict()
-        total_A = sum(counts_A.values())
-        total_B = sum(counts_B.values())
-        total_C = sum(counts_C.values())
-        p_01 = round(dfs[1]["LastFlip"].quantile(0.50), 1)
-        p_02 = round(dfs[2]["LastFlip"].quantile(0.50), 1)    
-        df.loc[len(df)] = [symbol, round((counts_A[0]/total_A)*100,1), round((counts_A[1]/total_A)*100,1), round((counts_A[2]/total_A)*100,1), round((counts_B[0]/total_B)*100,1), round((counts_B[1]/total_B)*100,1), round((counts_B[2]/total_B)*100,1), round((counts_B[3]/total_B)*100,1), round((counts_B[4]/total_B)*100,1), p_01, round((counts_C[0]/total_C)*100,1), round((counts_C[1]/total_C)*100,1), round((counts_C[2]/total_C)*100,1), round((counts_C[3]/total_C)*100,1), round((counts_C[4]/total_C)*100,1), p_02]
-    
-        dfs_green, dfs_red = dataframe_candle_split(dfs)
-
         if lower_timeframe == "daily":
-            n = "excels/analysis/monthly_" + symbol + ".csv"
-            dfs[1].to_csv(n)
-        else:
-            n = "excels/analysis/quarterly_" + symbol + ".csv"
-            dfs[1].to_csv(n)
+            timeframes_name = ["weekly", "monthly", "quarterly"]
+        elif lower_timeframe == "weekly":
+            timeframes_name = ["monthly", "quarterly", "yearly"]
+        elif lower_timeframe == "monthly":
+            timeframes_name = ["quarterly", "yearly"]
+        columns = []
+        columns.append("Stock")
+        for i in range (0,3):
+            columns.append(str(i) + " " + timeframes_name[0] + "_F")
+        for i in range (0,5):
+            columns.append(str(i) + " " + timeframes_name[1] + "_F")
+        columns.append("LF" + timeframes_name[1] + "_p50") 
+        if len(timeframes_name) > 2:
+            for i in range (0,5):
+                columns.append(str(i) + " " + timeframes_name[2] + "_F")
+            columns.append("5+ " + timeframes_name[2] + "_F")
+            columns.append("LF" + timeframes_name[2] + "_p50") 
+        df = pd.DataFrame(columns=columns)
+        df_detail = pd.DataFrame(columns=columns)
 
-        names = ["", "_green", "_red"]
-        x = 0
-        for df_aux in [dfs, dfs_green, dfs_red]:
-            counts_A = df_aux[0]["Flips"].value_counts().reindex(range(5), fill_value=0).to_dict()
-            counts_B = df_aux[1]["Flips"].value_counts().reindex(range(10), fill_value=0).to_dict()
-            counts_C = df_aux[2]["Flips"].value_counts().reindex(range(10), fill_value=0).to_dict()
-            total_A = sum(counts_A.values())
-            total_B = sum(counts_B.values())
-            total_C = sum(counts_C.values())
-            p_01 = round(df_aux[1]["LastFlip"].quantile(0.50), 1)
-            p_02 = round(df_aux[2]["LastFlip"].quantile(0.50), 1)   
-            symbol_name = symbol+names[x]
-            df_detail.loc[len(df_detail)] = [symbol_name, round((counts_A[0]/total_A)*100,1), round((counts_A[1]/total_A)*100,1), round((counts_A[2]/total_A)*100,1), round((counts_B[0]/total_B)*100,1), round((counts_B[1]/total_B)*100,1), round((counts_B[2]/total_B)*100,1), round((counts_B[3]/total_B)*100,1), round((counts_B[4]/total_B)*100,1), p_01, round((counts_C[0]/total_C)*100,1), round((counts_C[1]/total_C)*100,1), round((counts_C[2]/total_C)*100,1), round((counts_C[3]/total_C)*100,1), round((counts_C[4]/total_C)*100,1), p_02]
-            x = x+1  
-        
-        for a in range (0,3):
-            name = "excels/LastFlipOpen/" + lower_timeframe +"_flip_on_"+timeframes_name[a] + "_" + symbol + ".csv"
-            dfs[a]["LastFlip"].to_csv(name)
-        
-    name_csv = "excels/flips" + lower_timeframe + ".csv"
-    df.to_csv(name_csv)
-    name_csv = "excels/flips_detail_" + lower_timeframe + ".csv"
-    df_detail.to_csv(name_csv)
-    return df
+        for symbol in symbols:
+            print(symbol)
+            aux_timeframes = getDataStock(symbol)    
+            aux_timeframes_2= last_X_years(aux_timeframes, 30)
+            timeframes = create_hightimeframes(aux_timeframes_2, lower_timeframe)
+            data_candles = preparingData(timeframes) 
+            dfs = cycle_dynamics(symbol, data_candles, lower_timeframe)
+
+            # 1. Define la configuración para cada DataFrame en dfs # [rango_reindex, indices_a_guardar_en_df_final, usar_quantile]
+            config = [
+                [[0, 1, 2],    False], # DataFrame 0
+                [[0, 1, 2, 3, 4], True], # DataFrame 1 
+                [[0, 1, 2, 3, 4, 5], True]  # DataFrame 2
+            ]
+            new_row = [symbol]
+
+            for i, df_item in enumerate(dfs):
+                flips_to_show, use_quantile = config[i]
+
+                counts = df_item["Flips"].value_counts().reindex(range(10), fill_value=0)
+                total = counts.sum()
+
+                # Añadimos los porcentajes específicos definidos en 'targets'
+                for f in flips_to_show:
+                    percentage = round((counts[f] / total) * 100, 1) if total > 0 else 0
+                    new_row.append(percentage)
+
+                # Añadimos el cuantil si la configuración lo pide
+                if use_quantile:
+                    q_val = round(df_item["LastFlip"].quantile(0.50), 1)
+                    new_row.append(q_val)
+
+            # Insertar en el dataframe final
+            df.loc[len(df)] = new_row
+            dfs_green, dfs_red = dataframe_candle_split(dfs)
+
+            if lower_timeframe == "daily":
+                n = "excels/analysis/monthly_" + symbol + ".csv"
+                dfs[1].to_csv(n)
+            elif lower_timeframe == "weekly":
+                n = "excels/analysis/quarterly_" + symbol + ".csv"
+                dfs[1].to_csv(n)
+
+            names = [" (Green)", " (Red)"]
+            x = 0
+            for df_aux in [dfs_green, dfs_red]: #dfs si quiero la neutra antes que detalle verde y rojo
+                counts_A = df_aux[0]["Flips"].value_counts().reindex(range(10), fill_value=0).to_dict()
+                counts_B = df_aux[1]["Flips"].value_counts().reindex(range(10), fill_value=0).to_dict()
+                p_01 = round(df_aux[1]["LastFlip"].quantile(0.50), 1)
+                symbol_name = symbol+names[x]
+                row_details = [symbol_name]
+                row_details = append_values_row(row_details, counts_A, 3)
+                row_details = append_values_row(row_details, counts_B, 5)
+                row_details.append(p_01)
+
+                if len(timeframes_name) > 2:
+                    counts_C = df_aux[2]["Flips"].value_counts().reindex(range(10), fill_value=0).to_dict()
+                    row_details = append_values_row(row_details, counts_C, 6)
+                    p_02 = round(df_aux[2]["LastFlip"].quantile(0.50), 1)   
+                    row_details.append(p_02)
+
+                df_detail.loc[len(df_detail)] = row_details
+                x = x+1  
+
+            for a in range (0,len(dfs)):
+                name = "excels/LastFlipOpen/" + lower_timeframe +"_flip_on_"+timeframes_name[a] + "_" + symbol + ".csv"
+                dfs[a]["LastFlip"].to_csv(name)
+
+        name_csv = "excels/flips" + lower_timeframe + ".csv"
+        df.to_csv(name_csv)
+        name_csv = "excels/flips_detail_" + lower_timeframe + ".csv"
+        df_detail.to_csv(name_csv)
+        return df
+    except Exception as e:
+        print(e)
 
 
 def current_cycle_flips_all_symbols(lower_timeframe):
@@ -269,12 +331,17 @@ def current_cycle_flips_all_symbols(lower_timeframe):
         timeframes_name = ["weekly", "monthly", "quarterly"]
         if lower_timeframe == "daily":
             t = 0
-            margin = 0.075
+            margin = 0.125
             timeframes_name = ["weekly", "monthly", "quarterly"]
         elif lower_timeframe == "weekly":
             t = 1
-            margin = 0.05
+            margin = 0.1
             timeframes_name = ["monthly", "quarterly", "yearly"]
+        elif lower_timeframe == "monthly":
+            t = 2
+            margin = 0.01
+            timeframes_name = ["quarterly", "yearly"]
+
         symbols = getSymbols()
         rows = []
         for symbol in symbols:
@@ -285,18 +352,20 @@ def current_cycle_flips_all_symbols(lower_timeframe):
             data_candles = preparingData(timeframes) # prepare candles and rsi, wicks values   
             symbol_flips = []
             row = {}
+            p = 0
             for i in range (1+t,len(data_candles)):
                 lowerTimeframeCandles = data_candles[0+t][data_candles[0+t].index >= data_candles[i].index[-1]]
                 if lower_timeframe == "weekly":
                     MT = data_candles[0][data_candles[0].index >= data_candles[i].index[-1]]
                     df_partialweek = MT[MT.index >= data_candles[i].index[-1]]
                     if not df_partialweek.empty and len(df_partialweek) == 4:
-                        df = merge_partialweek(df, df_partialweek)
+                        lowerTimeframeCandles = merge_partialweek(lowerTimeframeCandles, df_partialweek)
                 open_price = data_candles[i].iloc[-1]["Open"]
-                flips, lastFlip = cycle_dynamics_calculation(lowerTimeframeCandles, open_price, margin)
-                if flips > 4:
-                    flips = 4 #represent a 5+ or a cell with the actual number
+                flips, lastFlip = cycle_dynamics_calculation(symbol, lowerTimeframeCandles, open_price, margin, timeframes_name[p])
+                if flips > 5:
+                    flips = 5 #represent a 5+ or a cell with the actual number
                 symbol_flips.append([flips, lastFlip])
+                p += 1
             row = {"symbol": symbol}
             for i, tf in enumerate(timeframes_name):
                 row[f"{tf}Flip"] = symbol_flips[i][0]
@@ -343,7 +412,6 @@ def rsi_tradingview(prices, period=14):
     return rsi
 
 
-# Calculo de EMA EXTENSION
 def calculation_ema_extension(data): 
     ema_extensions = []
     for df in data:
@@ -464,7 +532,10 @@ def calculation_retest_bands(data, timeframe):
                 k = 0
 
         rows.append({"Date": df.index[-1], "TimeAway": k})  
-        timeframes.append(pd.DataFrame(rows))
+        df = pd.DataFrame(rows)
+        df["Date"] = pd.to_datetime(df["Date"])
+        df = df.set_index("Date")
+        timeframes.append(df)
     return timeframes
 
 
@@ -550,33 +621,45 @@ def calculation_closing_gaps_all_symbols():
 
 def calculation_cycle_peak_expansion(data, stock):
     dataframes = []
+    dataframes_absolute = []
     try:
         timeframe = ["weekly", "monthly"]
         df_daily = data[0]
-        for x in range(2, len(data)): # High timeframe
+        for x in range(2, len(data)):
             HT = data[x]
             rows = []
-            for i in range(0, len(HT)-1): # High timeframe candles 
-                max_dev = 0
-                #if (HT["High"].iloc[i]-HT["Open"].iloc[i]) >= abs(HT["Open"].iloc[i]-HT["Low"].iloc[i]):
-                #    max_dev = HT["High"].iloc[i]
-                #else:
-                #    max_dev = HT["Low"].iloc[i]
+            rows_absolute = []
+            for i in range(0, len(HT)-1):
+                max_dev = 0 # peak after last flip
                 if (HT["type"].iloc[i] == "Green"):
                     max_dev = HT["High"].iloc[i]
                 else:
                     max_dev = HT["Low"].iloc[i]
 
+                max_dev_absolute = 0 # absolute peak of cycle
+                if (HT["High"].iloc[i]-HT["Open"].iloc[i]) >= abs(HT["Open"].iloc[i]-HT["Low"].iloc[i]):
+                    max_dev_absolute = HT["High"].iloc[i]
+                else:
+                    max_dev_absolute = HT["Low"].iloc[i]
+
+                max, max_absolute = False, False
+
                 LT = df_daily.loc[HT.index[i] : HT.index[i+1]].iloc[:-1]
                 for k in range(0, len(LT)):
-                    if (max_dev == LT["High"].iloc[k]) or (max_dev == LT["Low"].iloc[k]):
+                    if not max and (max_dev == LT["High"].iloc[k]) or (max_dev == LT["Low"].iloc[k]):
                         rows.append({"Date": HT.index[i], "PeakExpansion": k + 1, "Return": HT["Return"].iloc[i]})
-                        break
+                        max = True
+                    if not max_absolute and (max_dev_absolute == LT["High"].iloc[k]) or (max_dev_absolute == LT["Low"].iloc[k]):
+                        rows_absolute.append({"Date": HT.index[i], "PeakExpansion": k + 1, "Return": HT["Return"].iloc[i]})
+                        max_absolute = True
+
             df = pd.DataFrame(rows)
+            df1 = pd.DataFrame(rows_absolute)
             name = "excels/peaks/" + stock + "_" + timeframe[x-1] + ".csv"
             df.to_csv(name)
             dataframes.append(df)
-        return dataframes
+            dataframes_absolute.append(df1)
+        return dataframes, dataframes_absolute
     except Exception as e:
         print(e)
         return dataframes
@@ -586,7 +669,7 @@ def calculation_cycle_peak_expansion_all_symbols():
     try:
         symbols = getSymbols()
         timeframes = ["Weekly", "Monthly"]
-        columns = ["Symbol"]
+        columns = ["Symbol", "Type", "Occurrences"]
 
         for p in [10,20,50,80,90]:
             name_column = timeframes[1] + " " + "p" + str(p)
@@ -599,12 +682,20 @@ def calculation_cycle_peak_expansion_all_symbols():
             aux_timeframes = getDataStock(symbol) # get data of ticker  
             timeframes = preparingData(aux_timeframes)
             data = last_X_years(timeframes, 25)
-            dataframes_symbol = calculation_cycle_peak_expansion(data, symbol)
-            info = [symbol]        
-            for p in [0.10,0.20,0.50,0.80,0.90]:
-                percentil = dataframes_symbol[0]["PeakExpansion"].quantile(p)
-                info.append(round(percentil,0))
-            peak_study.loc[len(peak_study)] = info
+            dataframes_symbol, dataframes_symbol_absolute = calculation_cycle_peak_expansion(data, symbol)
+            df = dataframes_symbol[0].copy()
+            df_absolute = dataframes_symbol_absolute[0].copy()
+            df_green = df[df["Return"]>=0]
+            df_red = df[df["Return"]<0]
+            colour = ["Absolute", "Green", "Red"]
+            k = 0
+            for dataframe in (df_absolute, df_green, df_red):
+                info = [symbol, colour[k], len(dataframe)]        
+                for p in [0.10,0.20,0.50,0.80,0.90]:
+                    percentil = dataframe["PeakExpansion"].quantile(p)
+                    info.append(round(percentil,0))
+                peak_study.loc[len(peak_study)] = info
+                k += 1
 
         peak_study.to_csv("excels/peaksoverview.csv")
         return peak_study
@@ -623,7 +714,7 @@ def calculation_cashsession_dynamics():
             print("preparingDataCompleted")
             data = last_X_years(timeframes, 3)
             data_HT = data[0].copy()
-            data = getDataStock_LT(symbol)
+            data = getDataStock_LT(symbol, False)
             data_LT = data[0].copy()
             data_MicroT = getDataStock_MT(symbol)
 
@@ -685,6 +776,25 @@ def calculation_cashsession_dynamics():
         # montar las probabilidades segun el primer close de 15min, 30min, 1h, 2h (opcional)
     df = pd.DataFrame(rows)
     return df
+
+def calculation_open_momentum(timeframes):
+    try:
+        daily = timeframes[0].copy()
+        daily['month_period'] = daily.index.tz_localize(None).to_period('M')
+        monthly = timeframes[2].copy()
+        monthly['month_period'] = monthly.index.tz_localize(None).to_period('M')
+        start_period = monthly['month_period'].iloc[0]
+        end_period = monthly['month_period'].iloc[-1]
+        daily = daily[(daily['month_period'] >= start_period) & (daily['month_period'] <= end_period)]
+        firstdays_df = daily.groupby('month_period').head(3)
+        sum_retornos = firstdays_df.groupby('month_period')['Return'].sum()
+        monthly['Added_Return_2D'] = monthly['month_period'].map(sum_retornos)
+        return monthly 
+    except Exception as e:
+            print(e)
+
+
+
 
 
 #def calculation_cycle_returns():

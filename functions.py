@@ -1,5 +1,4 @@
 from concurrent.futures import ProcessPoolExecutor
-import random
 import pandas as pd
 from statistics_calculations import *
 from data import *
@@ -22,7 +21,7 @@ def load_data(name):
             return calculation_cycle_peak_expansion_all_symbols()
         elif name[0:12] == "excels/gaps/":
             return calculation_closing_gaps(name[12:])
-
+        
 
 def test_strategy(symbol):
     test = []
