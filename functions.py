@@ -1,26 +1,23 @@
 from concurrent.futures import ProcessPoolExecutor
 import pandas as pd
-from statistics_calculations import *
 from data import *
 #kucoin = ccxt.kucoinfutures({'enableRateLimit': True,'timeout': 90000})
-
-def load_data(name):
-    print("Empieza importar", name)
-    df = import_csv(name)
-    print("Acaba importar", name)
-    if not df.empty:
-        return df
-    else:    
-        if name[0:12] == "excels/flips":
-            return calculation_cycle_flips_all_symbols(name[12:], getSymbols())
-        elif name[0:19] == "excels/currentflips":
-            return current_cycle_flips_all_symbols(name[19:])
-        elif name == "excels/gapsallsymbols":
-            return calculation_closing_gaps_all_symbols()
-        elif name == "excels/peaksoverview":
-            return calculation_cycle_peak_expansion_all_symbols()
-        elif name[0:12] == "excels/gaps/":
-            return calculation_closing_gaps(name[12:])
+        
+def symbol_name_sustitution(name):
+    if name == "^GSPC":
+        return "SP500"
+    elif name == "GC=F":
+        return "GOLD"
+    elif name == "SI=F":
+        return "SILVER"
+    elif name == "CL=F":
+        return "OIL"
+    elif name == "BTC-USD":
+        return "BTC"
+    elif name == "ETH-USD":
+        return "ETH"
+    else:
+        return name
         
 
 def test_strategy(symbol):

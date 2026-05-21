@@ -178,45 +178,48 @@ def screen_screener_ema_extensions(longs, shorts):
 
 
 def screen_deviations(data, stock): 
-    fig = make_subplots(rows=2, cols=3, vertical_spacing=0.11, horizontal_spacing=0.04, subplot_titles=["DAILY DEVIATIONS (GREEN DAY)", "WEEKLY DEVIATIONS (GREEN WEEK)", "MONTHLY DEVIATIONS (GREEN MONTH)", "DAILY DEVIATIONS (RED DAY)", "WEEKLY DEVIATIONS (RED WEEK)", "MONTHLY DEVIATIONS (RED MONTH)"])
-    data = last_X_years(data, 30)
-    for i in range(len(data)):
-        df = data[i]
-        df_green = df[df["type"] == "Green"]
-        df_red = df[df["type"] == "Red"]
-        k = 0
-        #current_time = df.index[-1] + pd.Timedelta(days=extra_days)
-        candle = df.iloc[-1]
-        current_value = [((candle['Open'] - candle['Low']) / candle['Open'])*100, ((candle['High'] - candle['Open']) / candle['Open'])*100]
-        cont = 0
-        color = "green"
-        for df_for in [df_green, df_red]:      
-            if current_value[cont] < df_for["Deviation"].quantile(0.90):
-                ext = df_for[df_for["Deviation"] <= df_for["Deviation"].quantile(0.98)]
-                y_range = ext["Deviation"]
-            elif current_value[cont] >= df_for["Deviation"].quantile(0.90):
-                ext = df_for[df_for["Deviation"] <= df_for["Deviation"].quantile(0.99)]
-                y_range = ext["Deviation"]
-            value = current_value[cont]
+    try:
+        fig = make_subplots(rows=2, cols=4, vertical_spacing=0.11, horizontal_spacing=0.04, subplot_titles=["DAILY DEVIATIONS (GREEN DAY)", "WEEKLY DEVIATIONS (GREEN WEEK)", "MONTHLY DEVIATIONS (GREEN MONTH)", "QUARTERLY DEVIATIONS (GREEN QUARTER)", "DAILY DEVIATIONS (RED DAY)", "WEEKLY DEVIATIONS (RED WEEK)", "MONTHLY DEVIATIONS (RED MONTH)", "QUARTERLY DEVIATIONS (RED QUARTER)"])
+        data = last_X_years(data, 30)
+        for i in range(len(data)):
+            df = data[i]
+            df_green = df[df["type"] == "Green"]
+            df_red = df[df["type"] == "Red"]
+            k = 0
+            #current_time = df.index[-1] + pd.Timedelta(days=extra_days)
+            candle = df.iloc[-1]
+            current_value = [((candle['Open'] - candle['Low']) / candle['Open'])*100, ((candle['High'] - candle['Open']) / candle['Open'])*100]
+            cont = 0
+            color = "green"
+            for df_for in [df_green, df_red]:      
+                if current_value[cont] < df_for["Deviation"].quantile(0.90):
+                    ext = df_for[df_for["Deviation"] <= df_for["Deviation"].quantile(0.98)]
+                    y_range = ext["Deviation"]
+                elif current_value[cont] >= df_for["Deviation"].quantile(0.90):
+                    ext = df_for[df_for["Deviation"] <= df_for["Deviation"].quantile(0.99)]
+                    y_range = ext["Deviation"]
+                value = current_value[cont]
 
-            percentil_value = [0.90, 0.80, 0.50, -1]
-            percentil_name = ["p90", "p80", "p50", "p20"]
-            percentil_color = ["black", "black", "purple", "black"]
-            percentil_location = ["top right", "top right", "top right", "bottom right"] 
-            if color == "green":
-                y_range = y_range * -1
-                df_for["Deviation"] = np.negative(df_for["Deviation"])
-                value = value * -1
-                percentil_value = [0.1, 0.20, 0.50, -1]
+                percentil_value = [0.95, 0.80, 0.50, -1]
+                percentil_name = ["p95", "p80", "p50", "OPEN"]
+                percentil_color = ["black", "black", "purple", "black"]
+                percentil_location = ["top right", "top right", "top right", "right"] 
+                if color == "green":
+                    y_range = y_range * -1
+                    df_for["Deviation"] = np.negative(df_for["Deviation"])
+                    value = value * -1
+                    percentil_value = [0.1, 0.20, 0.50, -1]
 
-            fig.add_trace(go.Scatter(x=df_for.index, y=y_range, mode="markers", marker=dict(color=color, size=6), showlegend=False, opacity=0.75), row=1+k, col=i+1) 
-            fig = percentiles_and_currentValue(fig, df_for, 1+k, i+1, "Deviation", value, df_for.index[-1], percentil_value, percentil_name, percentil_color, percentil_location)
-            fig = right_margin_chart(fig, df, 1+k, i+1, 5)  
-            cont = cont + 1
-            k = k + 1
-            color = "red"
-    fig = title_stock(fig, stock)
-    return fig
+                fig.add_trace(go.Scatter(x=df_for.index, y=y_range, mode="markers", marker=dict(color=color, size=6), showlegend=False, opacity=0.75), row=1+k, col=i+1) 
+                fig = percentiles_and_currentValue(fig, df_for, 1+k, i+1, "Deviation", value, df_for.index[-1], percentil_value, percentil_name, percentil_color, percentil_location)
+                fig = right_margin_chart(fig, df, 1+k, i+1, 5)  
+                cont = cont + 1
+                k = k + 1
+                color = "red"
+        fig = title_stock(fig, stock)
+        return fig
+    except Exception as e:
+        print(e)
 
 
 def screen_ema_retests(data, stock, k):
@@ -353,7 +356,7 @@ def screen_lastflip_x_peak(df1, df2, stock):
             df_group.columns = ['LastFlip', 'Mean', 'Std']
             df_group['Std'] = df_group['Std'].fillna(0)
             fig.add_trace(go.Scatter(x=df_group["LastFlip"], y=df_group["Mean"], 
-                error_y=dict(type='data', array=df_group["Std"], visible=True, color='orange', thickness=1.5, width=5), 
+                error_y=dict(type='data', array=df_group["Std"], visible=True, color='red', thickness=2, width=6), 
                 mode="markers", marker=dict(color="black", size=12), showlegend=False), row=r, col=1)  
             if r == 1:
                 df_sorted = df.sort_values(by='Return', ascending=False)
@@ -408,153 +411,96 @@ def screen_returns(data, stock):
     return fig
 
 
-def screen_open_momentum(df):
+# =========================================================================
+# 2. LA FUNCIÓN DE LA MEGA-MATRIZ (Genera la cuadrícula 6x3)
+# =========================================================================
+def screen_open_momentum(df, stock):
     try:
-        fig = make_subplots(rows=1, cols=1, vertical_spacing=0.10, horizontal_spacing=0.04, subplot_titles=["First 2 day Added Return x Monthly Return"])
-        fig.add_trace(go.Scatter(x=df["Return"], y=df["Added_Return_2D"], mode="markers", marker=dict(color="black", size=5), showlegend=False, opacity=0.75),
-            row=1, col=1) 
-        fig.add_vline(x=0, line_width=2, line_dash="dash", line_color="red")
-        fig.add_hline(y=0, line_width=2, line_dash="dash", line_color="blue")
+        target_days = [1, 3, 5]
+        sigmas = [1.0, 1.5, 2]
+        
+        plot_titles = []
+        for day in target_days:
+            for sigma in sigmas:
+                plot_titles.append(f"Day {day} | Filtro: {sigma}σ")
+                
+        # 6 filas (días) x 3 columnas (sigmas)
+        fig = make_subplots(
+            rows=3, cols=3, 
+            vertical_spacing=0.15,     
+            horizontal_spacing=0.05,   
+            subplot_titles=plot_titles
+        )
+        
+        subplot_index = 0
+        
+        for row_idx, day in enumerate(target_days, start=1):
+            current_col = f"Added_Return_{day}"
+            
+            if current_col not in df.columns:
+                continue
+                
+            # 'Return' es el rendimiento mensual completo (Eje Y con solapamiento)
+            df_clean = df[["Return", current_col]].dropna()
+            
+            for col_idx, sigma in enumerate(sigmas, start=1):
+                
+                # Aplicamos el filtro de desviación estándar dinámico por columna
+                if len(df_clean) > 5:
+                    mean_k = df_clean[current_col].mean()
+                    std_k = df_clean[current_col].std()
+                    df_filtered = df_clean[(df_clean[current_col] - mean_k).abs() >= (sigma * std_k)]
+                else:
+                    df_filtered = df_clean.copy()
+                
+                r_value = 0.0
+                if len(df_filtered) > 1:
+                    r_value = df_filtered["Return"].corr(df_filtered[current_col])
+                
+                # Título dinámico para que tu ojo controle el r y el n de cada escenario
+                new_title = f"Day {day} ({sigma}σ) | r: {round(r_value, 2)} | n: {len(df_filtered)}"
+                fig.layout.annotations[subplot_index].text = new_title
+                subplot_index += 1
+                
+                # Puntos (Scatter)
+                fig.add_trace(
+                    go.Scatter(
+                        x=df_filtered["Return"], 
+                        y=df_filtered[current_col], 
+                        mode="markers", 
+                        marker=dict(color="blue", size=6, opacity=0.6), 
+                        showlegend=False
+                    ),
+                    row=row_idx, col=col_idx
+                ) 
+                
+                # Línea de regresión lineal (Roja)
+                if len(df_filtered) > 1:
+                    m, b = np.polyfit(df_filtered["Return"], df_filtered[current_col], 1)
+                    x_line = np.array([df_filtered["Return"].min(), df_filtered["Return"].max()])
+                    y_line = m * x_line + b
+                    if sigma == 1:
+                        color = "green"
+                    elif sigma == 1.5:
+                        color = "purple"
+                    elif sigma == 2:
+                        color = "red"
+                        
+                    fig.add_trace(
+                        go.Scatter(
+                            x=x_line, 
+                            y=y_line, 
+                            mode="lines", 
+                            line=dict(color=color, width=2), 
+                            showlegend=False
+                        ),
+                        row=row_idx, col=col_idx
+                    )
+                
+                # Cruces por cero (Negro y Naranja)
+                fig.add_vline(x=0, line_width=1.2, line_dash="solid", line_color="black", row=row_idx, col=col_idx)
+                fig.add_hline(y=0, line_width=1.0, line_dash="solid", line_color="orange", row=row_idx, col=col_idx)
+        fig = title_stock(fig, stock)
         return fig
     except Exception as e:
-        print(e)
-
-
-def colour_painting(df, name, current_colours, current_stock_pos):
-    try:
-        colours = []
-        if name == "flips":
-            for i, col in enumerate(df.columns):
-                if i == 0:
-                    colours.append(["white"] * len(df))
-                elif i <= 3:
-                    colours.append(["lightgreen"] * len(df))
-                elif i <= 8:
-                    colours.append(["lightblue"] * len(df))
-                elif i == 9 or i == 16: 
-                    colours.append(["lightgray"] * len(df))
-                else:
-                    colours.append(["lightgreen"] * len(df))
-
-        if current_stock_pos != -1:
-            for x in range (0, len(colours)): # i highlight the current stock
-                colours[x][current_stock_pos] = "#a6a6a6"        
-        print("i get here")
-        if not current_colours.empty: # i override the current flips of opens situation in weekly and monthly
-            i = 0
-            for row in current_colours.itertuples(index=False):
-                row_columns = list(row)
-                posWeekly = row_columns[1] + 1
-                posMonthly = row_columns[3] + 4
-                posQuarterly = row_columns[5] + 10
-                if i != current_stock_pos:
-                    colours[posWeekly][i] = "yellow"
-                    colours[posMonthly][i] = "yellow"
-                    colours[posQuarterly][i] = "yellow"
-                else:
-                    colours[posWeekly][i] = "lightyellow"
-                    colours[posMonthly][i] = "lightyellow"
-                    colours[posQuarterly][i] = "lightyellow"
-
-                i = i + 1
-        print("i return colours")
-        return colours
-    except Exception as e:
-        print(e)
-
-
-def colour_painting_detailed_flips(df, current_stock_pos):
-    colours = []    
-    for i, col in enumerate(df.columns):
-        column_colors = []
-        for row_idx in range(len(df)):
-            # Nuevo patrón de 2 -> 0: Verde, 1: Rojo
-            row_pattern = row_idx % 2  
-
-            # Lógica por columnas
-            if i == 0:
-                # La primera columna la dejamos limpia/blanca para ambas filas
-                column_colors.append("white")
-            elif i == 9 or i == 15: 
-                # Columnas especiales con tu color original
-                column_colors.append("#E6CFE0")
-            else:
-                # El resto de columnas de datos por defecto van en blanco
-                column_colors.append("white")
-                
-        colours.append(column_colors)
-
-    # Resaltado del stock actual (ahora ocupa 2 filas en lugar de 3)
-    if current_stock_pos != -1:
-        base_idx = current_stock_pos * 2
-        for x in range(len(colours)): 
-            colours[x][base_idx] = "lightgreen"  # Fila Verde de la empresa actual
-            colours[x][base_idx + 1] = "#FFB15C" # Fila Roja de la empresa actual
-            
-    print("i return colours")
-    return colours
-
-
-def colour_painting_simple_table(df, current_stock_pos):
-    colours = []    
-    k = 0
-    for i, col in enumerate(df.columns):
-        if k == 0:
-            colours.append(["lightgray"] * len(df))
-        elif k == 3:
-            colours.append(["lightyellow"] * len(df))
-        else:
-            colours.append(["white"] * len(df))
-
-    if current_stock_pos != -1:
-        for x in range (0, len(colours)): # i highlight the current stock
-            colours[x][current_stock_pos] = "yellow" 
-    return colours       
-
-
-def table_fig(df, colours):
-    fig = go.Figure(
-        data=[
-            go.Table(
-                header=dict(
-                    values=list(df.columns),
-                    fill_color="black",
-                    font=dict(color="white", size=12),
-                    align="center"
-                ),
-                cells=dict(
-                values=[df[col] for col in df.columns],
-                fill_color=colours,
-                font=dict(color="black", size=15),
-                align="center",
-                height=28   # prueba 28–40
-                )
-            )
-        ]
-    )
-    fig.update_layout(title="", margin=dict(l=10, r=10, t=20, b=0))
-    return fig
-
-
-def table_fig_variation(df):
-    fig = go.Figure(
-        data=[
-            go.Table(
-                header=dict(
-                    values=list(df.columns),
-                    fill_color="black",
-                    font=dict(color="white", size=12),
-                    align="center"
-                ),
-                cells=dict(
-                values=[df[col] for col in df.columns],
-                font=dict(color="black", size=15),
-                align="center",
-                height=28   # prueba 28–40
-                )
-            )
-        ]
-    )
-
-    fig.update_layout(title="", margin=dict(l=10, r=10, t=20, b=0))
-    return fig
+        print(f"Error: {e}")

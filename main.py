@@ -15,6 +15,24 @@ from dash.dependencies import Input, Output
 # study of trailing stops optimization
 # multiple consecutive wicks detection for reversals !!!!
 
+def load_data(name):
+    print("Empieza importar", name)
+    df = import_csv(name)
+    print("Acaba importar", name)
+    if not df.empty:
+        return df
+    else:    
+        if name[0:12] == "excels/flips":
+            return calculation_cycle_flips_all_symbols(name[12:], getSymbols())
+        elif name[0:19] == "excels/currentflips":
+            return current_cycle_flips_all_symbols(name[19:])
+        elif name == "excels/gapsallsymbols":
+            return calculation_closing_gaps_all_symbols()
+        elif name == "excels/peaksoverview":
+            return calculation_cycle_peak_expansion_all_symbols()
+        elif name[0:12] == "excels/gaps/":
+            return calculation_closing_gaps(name[12:])
+
 tabs_styles = {
     'height': '60px',
     'alignItems': 'center',
@@ -63,7 +81,6 @@ ticker_options = [
     {'label': '🔵 INTC - Intel', 'value': 'INTC'},
     {'label': '⚡ TSLA - Tesla', 'value': 'TSLA'},
     {'label': '👁️ PLTR - Palantir', 'value': 'PLTR'},
-    {'label': '📊 MSTR - MicroStrategy', 'value': 'MSTR'},
     #
     ## CHINA TECH
     {'label': '🐉 BABA - Alibaba', 'value': 'BABA'},
@@ -136,26 +153,27 @@ app.layout = html.Div([
         dcc.Tab(label='EMA 50/200', value='tab-5', style=tab_style, selected_style=tab_selected_style),
         dcc.Tab(label='FLIPS(D)', value='tab-9', style=tab_style, selected_style=tab_selected_style),
         dcc.Tab(label='FLIPS(W)', value='tab-10', style=tab_style, selected_style=tab_selected_style),
-        dcc.Tab(label='FLIPS(M)', value='tab-28', style=tab_style, selected_style=tab_selected_style),
         dcc.Tab(label='+FLIPS(D)', value='tab-18', style=tab_style, selected_style=tab_selected_style),
         dcc.Tab(label='+FLIPS(W)', value='tab-19', style=tab_style, selected_style=tab_selected_style),
-        dcc.Tab(label='LAST FLIP', value='tab-14', style=tab_style, selected_style=tab_selected_style),
-        dcc.Tab(label='DEVIATION', value='tab-6', style=tab_style, selected_style=tab_selected_style),
-        dcc.Tab(label='STRIKES', value='tab-7', style=tab_style, selected_style=tab_selected_style),
+        dcc.Tab(label='+FLIPS(M)', value='tab-28', style=tab_style, selected_style=tab_selected_style),
+        dcc.Tab(label='LF', value='tab-14', style=tab_style, selected_style=tab_selected_style),
+        dcc.Tab(label='DEV', value='tab-6', style=tab_style, selected_style=tab_selected_style),
+        dcc.Tab(label='STRIKE', value='tab-7', style=tab_style, selected_style=tab_selected_style),
         dcc.Tab(label='RSI', value='tab-8', style=tab_style, selected_style=tab_selected_style),
         dcc.Tab(label='EMA 1h/4h', value='tab-23', style=tab_style, selected_style=tab_selected_style),
         dcc.Tab(label='MR(LT)', value='tab-24', style=tab_style, selected_style=tab_selected_style), 
         dcc.Tab(label='MR(HT)', value='tab-13', style=tab_style, selected_style=tab_selected_style),
-        dcc.Tab(label='OPEN GAPS', value='tab-17', style=tab_style, selected_style=tab_selected_style),
+        #dcc.Tab(label='OPEN GAPS', value='tab-17', style=tab_style, selected_style=tab_selected_style),
         dcc.Tab(label='F-LFxR%', value='tab-20', style=tab_style, selected_style=tab_selected_style),
-        dcc.Tab(label='LFxPeak', value='tab-21', style=tab_style, selected_style=tab_selected_style),
-        dcc.Tab(label='Peaks', value='tab-15', style=tab_style, selected_style=tab_selected_style),
-        dcc.Tab(label='Gaps', value='tab-16', style=tab_style, selected_style=tab_selected_style),
-        dcc.Tab(label='Volatility', value='tab-26', style=tab_style, selected_style=tab_selected_style),
-        dcc.Tab(label='Returns', value='tab-27', style=tab_style, selected_style=tab_selected_style),
-        dcc.Tab(label='CashSession', value='tab-25', style=tab_style, selected_style=tab_selected_style),
-        dcc.Tab(label='Screener', value='tab-12', style=tab_style, selected_style=tab_selected_style),
-        dcc.Tab(label='Momentum', value='tab-29', style=tab_style, selected_style=tab_selected_style)#,
+        dcc.Tab(label='LFxPEAK', value='tab-21', style=tab_style, selected_style=tab_selected_style),
+        dcc.Tab(label='SMxR%', value='tab-29', style=tab_style, selected_style=tab_selected_style),
+        dcc.Tab(label='PEAKS', value='tab-15', style=tab_style, selected_style=tab_selected_style),
+        #dcc.Tab(label='Gaps', value='tab-16', style=tab_style, selected_style=tab_selected_style),
+        dcc.Tab(label='VOL', value='tab-26', style=tab_style, selected_style=tab_selected_style),
+        dcc.Tab(label='R%', value='tab-27', style=tab_style, selected_style=tab_selected_style),
+        dcc.Tab(label='CASH.S.', value='tab-25', style=tab_style, selected_style=tab_selected_style),
+        dcc.Tab(label='Scr.Ext', value='tab-12', style=tab_style, selected_style=tab_selected_style),
+        dcc.Tab(label='Scr.Cross', value='tab-30', style=tab_style, selected_style=tab_selected_style)#,
         #dcc.Tab(label='Test', value='tab-26', style=tab_style, selected_style=tab_selected_style)
     ]
     ),
@@ -214,9 +232,7 @@ def render_content(stock, tab, n_clicks):
         print("DATABASE")
         getDataframesDatabase()
     
-    timeframes = getDataStock(stock) 
-    data_aux = preparingData(timeframes) 
-    data = last_X_years(data_aux, 60)
+    data = preparing_timeframes(stock, "")
     current_stock = getCurrentStockPos(stock)
 
     #pe_ntm = yf.Ticker(stock).info.get("forwardPE")
@@ -328,7 +344,10 @@ def render_content(stock, tab, n_clicks):
         return table_fig(df_tab_28, colours_tab_28)
     elif tab == 'tab-29':
         data_tab_29 = calculation_open_momentum(data)
-        return screen_open_momentum(data_tab_29)
+        return screen_open_momentum(data_tab_29, stock)
+    elif tab == 'tab-30':
+        data_tab_30 = golden_cross_screener()
+        return table_fig_variation(data_tab_30)
     #elif tab == 'tab-26':
     #    df = test_strategy_all_symbols()
     #    return table_fig_variation(df)
