@@ -66,7 +66,7 @@ ticker_options = [
     {'label': '📊 S&P 500', 'value': '^GSPC'},
     # TECH GIANTS & SEMIS
     {'label': '🚀 ASTS - SpaceMobile', 'value': 'ASTS'},
-    {'label': '⛏️ IREN - Iris Energy', 'value': 'IREN'},
+    {'label': '🚀 ROCKETLAB', 'value': 'RKLB'},
     {'label': '⚡ NBIS', 'value': 'NBIS'},
     {'label': '💾 MU - Micron Technology', 'value': 'MU'},
     {'label': '🟢 NVDA - Nvidia', 'value': 'NVDA'},
@@ -94,7 +94,10 @@ ticker_options = [
     
     # CRYPTO
     {'label': '🟠 BTC-USD - Bitcoin', 'value': 'BTC-USD'},
-    {'label': '🔷 ETH-USD - Ethereum', 'value': 'ETH-USD'}
+    {'label': '🔷 ETH-USD - Ethereum', 'value': 'ETH-USD'},
+    {'label': '🟢 EURUSD', 'value': 'EURUSD=X'},
+    {'label': '🟢 GBPUSD', 'value': 'GBPUSD=X'}, 
+    {'label': '🟢 USDJPY', 'value': 'USDJPY=X'}
 ]
 
 app = dash.Dash(__name__)
@@ -108,7 +111,7 @@ app.layout = html.Div([
             dcc.Dropdown(
                 id='ticker-selector',
                 options=ticker_options,
-                value='ASTS',
+                value='^GSPC',
                 clearable=False,
                 searchable=True,
                 style={'width': '280px', 'color': 'black'}
@@ -167,14 +170,16 @@ app.layout = html.Div([
         dcc.Tab(label='F-LFxR%', value='tab-20', style=tab_style, selected_style=tab_selected_style),
         dcc.Tab(label='LFxPEAK', value='tab-21', style=tab_style, selected_style=tab_selected_style),
         dcc.Tab(label='SMxR%', value='tab-29', style=tab_style, selected_style=tab_selected_style),
+        dcc.Tab(label='Ovr.SMxR%', value='tab-31', style=tab_style, selected_style=tab_selected_style),
         dcc.Tab(label='PEAKS', value='tab-15', style=tab_style, selected_style=tab_selected_style),
         #dcc.Tab(label='Gaps', value='tab-16', style=tab_style, selected_style=tab_selected_style),
         dcc.Tab(label='VOL', value='tab-26', style=tab_style, selected_style=tab_selected_style),
         dcc.Tab(label='R%', value='tab-27', style=tab_style, selected_style=tab_selected_style),
         dcc.Tab(label='CASH.S.', value='tab-25', style=tab_style, selected_style=tab_selected_style),
+        dcc.Tab(label='Q.Pattern', value='tab-100', style=tab_style, selected_style=tab_selected_style),
         dcc.Tab(label='Scr.Ext', value='tab-12', style=tab_style, selected_style=tab_selected_style),
-        dcc.Tab(label='Scr.Cross', value='tab-30', style=tab_style, selected_style=tab_selected_style)#,
-        #dcc.Tab(label='Test', value='tab-26', style=tab_style, selected_style=tab_selected_style)
+        dcc.Tab(label='Scr.Cr', value='tab-30', style=tab_style, selected_style=tab_selected_style),
+        dcc.Tab(label='Test', value='tab-test', style=tab_style, selected_style=tab_selected_style)
     ]
     ),
 
@@ -234,7 +239,6 @@ def render_content(stock, tab, n_clicks):
     
     data = preparing_timeframes(stock, "")
     current_stock = getCurrentStockPos(stock)
-
     #pe_ntm = yf.Ticker(stock).info.get("forwardPE")
     #print(pe_ntm)
 
@@ -346,11 +350,21 @@ def render_content(stock, tab, n_clicks):
         data_tab_29 = calculation_open_momentum(data)
         return screen_open_momentum(data_tab_29, stock)
     elif tab == 'tab-30':
-        data_tab_30 = golden_cross_screener()
-        return table_fig_variation(data_tab_30)
-    #elif tab == 'tab-26':
-    #    df = test_strategy_all_symbols()
-    #    return table_fig_variation(df)
+        data_tab_30 = golden_cross_screener("daily")
+        #return table_fig_variation(data_tab_30)
+        data_tab_30_planning, data_tab_30_execution = calculation_12_25_cross()
+        return screen_12_25_cross(data_tab_30_planning, data_tab_30_execution)
+    elif tab == 'tab-31':
+        data_tab_31 = calculation_open_momentum_all_symbols()
+        return table_fig_variation(data_tab_31)
+    elif tab == 'tab-test':
+        df = test_strategy_all_symbols()
+        print("ready to paint")
+        return table_fig_variation(df)
+    elif tab == 'tab-100':
+        df_100 = calculation_patterns()
+        colours_tab_100 = colour_painting_quarter_patterns(df_100, current_stock)
+        return table_fig(df_100, colours_tab_100)
     else:
         pass
 

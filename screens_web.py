@@ -143,10 +143,12 @@ def screen_ema_extension_plotly(ema_extensions, stock, k):
                 current_ext = df[col_name].iloc[-1]
                 p95 = df[col_name].quantile(0.95)
                 p05 = df[col_name].quantile(0.05)
+                p995 = df[col_name].quantile(0.995)
+                p005 = df[col_name].quantile(0.005)
                 fechas = df_aux.index
                 if len(EMAS) > 2:
-                    ext_high_pts = df[(df[col_name_ema_high[x + k]] >= p95) & (df[col_name_ema_high[x + k]] <= df[col_name].quantile(0.995))][col_name_ema_high[x + k]]
-                    ext_low_pts = df[(df[col_name_ema_low[x + k]] <= p05) & (df[col_name_ema_high[x + k]] >= df[col_name].quantile(0.005))][col_name_ema_low[x + k]]
+                    ext_high_pts = df[(df[col_name_ema_high[x + k]] >= p95) & (df[col_name_ema_high[x + k]] <= p995)][col_name_ema_high[x + k]]
+                    ext_low_pts = df[(df[col_name_ema_low[x + k]] <= p05) & (df[col_name_ema_low[x + k]] >= p005)][col_name_ema_low[x + k]]
                     fig.add_trace(go.Scatter(x=ext_high_pts.index, y=ext_high_pts, mode="markers", marker=dict(size=4, color="red"), showlegend=False), row=x, col=i + 1)
                     fig.add_trace(go.Scatter(x=ext_low_pts.index, y=ext_low_pts, mode="markers", marker=dict(size=4, color="red"), showlegend=False), row=x, col=i + 1)
 
@@ -173,7 +175,7 @@ def screen_screener_ema_extensions(longs, shorts):
     fig_shorts_base = table_fig_variation(shorts)
     fig.add_trace(fig_long_base.data[0], row=1, col=1)
     fig.add_trace(fig_shorts_base.data[0], row=1, col=2)
-    fig.update_layout(height=800, template="plotly_white", title_text="Percentiles EMA Set-Ups", title_x=0.5)    
+    fig.update_layout(height=800, template="plotly_white", title_text="EMA Extension and Mean Reversion time", title_x=0.5)    
     return fig
 
 
@@ -375,8 +377,11 @@ def screen_lastflip_x_peak(df1, df2, stock):
 def screen_volatility(data, stock):
     fig = make_subplots(rows=1, cols=3, vertical_spacing=0.10, horizontal_spacing=0.04, subplot_titles=["Daily Volatility History", "Weekly Volatility History", "Monthly Volatility History"])
     column = 1
-    for df in data:
-        total_time = df.index[-1] - df.index[0]            
+    parameter = [-365, -50, -12]
+    for df in data:  
+        min = df[parameter[column-1]:]["Volatility"].min()        
+        df = df[df["Volatility"] >= min].copy()
+        total_time = df.index[-1] - df.index[0]  
         padding = total_time / 5
         new_x_limit = df.index[-1] + padding
         fig.add_trace(go.Scatter(x=df.index, y=df["Volatility"], mode="markers", marker=dict(color="red", size=6), showlegend=False, opacity=0.75),
@@ -411,9 +416,6 @@ def screen_returns(data, stock):
     return fig
 
 
-# =========================================================================
-# 2. LA FUNCIÓN DE LA MEGA-MATRIZ (Genera la cuadrícula 6x3)
-# =========================================================================
 def screen_open_momentum(df, stock):
     try:
         target_days = [1, 3, 5]
@@ -504,3 +506,16 @@ def screen_open_momentum(df, stock):
         return fig
     except Exception as e:
         print(f"Error: {e}")
+
+
+def screen_12_25_cross(planning, execution):
+    try:
+        fig = make_subplots(rows=1, cols=2, vertical_spacing=0.11, horizontal_spacing=0.05,subplot_titles=["Next Cross", "Crossing"], specs=[[{"type": "table"}, {"type": "table"}]])
+        fig_long_base = table_fig_variation(planning)
+        fig_shorts_base = table_fig_variation(execution)
+        fig.add_trace(fig_long_base.data[0], row=1, col=1)
+        fig.add_trace(fig_shorts_base.data[0], row=1, col=2)
+        fig.update_layout(height=800, template="plotly_white", title_x=0.5)    
+        return fig
+    except Exception as e:
+        print(e)

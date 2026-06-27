@@ -1,8 +1,10 @@
 import numpy as np
+import random
 from functions import * 
 import pandas as pd
 from data import *
 from scipy import stats
+from concurrent.futures import ProcessPoolExecutor
 
 # Calculation of strikes probabilities
 def calculation_StrikesProbabilities(data):
@@ -634,7 +636,7 @@ def calculation_cycle_peak_expansion(data, stock):
     try:
         timeframe = ["weekly", "monthly"]
         df_daily = data[0]
-        for x in range(2, len(data)):
+        for x in range(2, 3):
             HT = data[x]
             rows = []
             rows_absolute = []
@@ -688,7 +690,11 @@ def calculation_cycle_peak_expansion_all_symbols():
     
         for symbol in symbols:
             print(symbol)
-            data = preparing_timeframes(symbols, "")
+            try:
+                data = preparing_timeframes(symbol, "")
+            except Exception as e:
+                print(e)
+            print("llega aca")
             dataframes_symbol, dataframes_symbol_absolute = calculation_cycle_peak_expansion(data, symbol)
             df = dataframes_symbol[0].copy()
             df_absolute = dataframes_symbol_absolute[0].copy()
@@ -799,7 +805,6 @@ def calculation_open_momentum(timeframes):
         daily = daily[(daily['month_period'] >= start_period) & (daily['month_period'] <= end_period)]
         daily['Return_Decimal'] = daily['Return'] / 100 if daily['Return'].max() > 1 else daily['Return']
 
-        # Mantenemos tus 6 puntos objetivo
         for k in (1, 3, 5):
             firstdays_df = daily.groupby('month_period').head(k)
             prod_retornos = firstdays_df.groupby('month_period')['Return_Decimal'].apply(lambda x: (1 + x).prod() - 1)
@@ -811,37 +816,413 @@ def calculation_open_momentum(timeframes):
         print(e)
 
 
-def golden_cross_screener():
+def calculation_open_momentum_all_symbols():
+    symbols = get_hyperliquid_symbols()
+    target_days = [1, 3, 5]
+    sigmas = [1.0, 1.5, 2]
+    columns = ["Asset"]
+    rows = []
+    for d in target_days:
+        for s in sigmas:
+            columns.append("ADDED DAY"+str(d)+"-std("+str(s)+")")
+            columns.append("Ocurr (day "+str(d)+"-"+str(s)+")")
+    
+    columns.append("Avg-Corr")
+
+    for symbol in symbols:
+        average = []
+        print(symbol)
+        try:
+            row = [symbol]
+            data = preparing_timeframes(symbol, "")
+            df = calculation_open_momentum(data)
+            for row_idx, day in enumerate(target_days, start=1):
+                current_col = f"Added_Return_{day}"            
+                df_clean = df[["Return", current_col]].dropna()
+                for col_idx, sigma in enumerate(sigmas, start=1):
+                    if len(df_clean) >= 2:
+                        mean_k = df_clean[current_col].mean()
+                        std_k = df_clean[current_col].std()
+                        df_filtered = df_clean[(df_clean[current_col] - mean_k).abs() >= (sigma * std_k)]
+                        r_value = 0.0
+                        if len(df_filtered) > 1:
+                            r_value = df_filtered["Return"].corr(df_filtered[current_col])
+                            row.append(round(r_value, 2))
+                            average.append(r_value)
+                            row.append(len(df_filtered))
+                        else:
+                            r_value = "-"
+                    else:
+                        r_value = "-"
+                    if r_value == "-":
+                        row.append(np.nan)
+                        row.append(np.nan)
+            aux_df = pd.DataFrame(average)
+            row.append(round(float(aux_df.mean().item()), 2))
+            rows.append(row)
+        except Exception as e:
+            print(e)
     try:
-        symbols = get_sp500_symbols()
-        golden_crosses = []
-
-        for symbol in symbols:
-            print(symbol)
-            try:
-                data_aux = preparing_timeframes(symbol, "")
-                time.sleep(1)
-                data = calculation_ema_extension(data_aux)
-                df = data[1].iloc[-3:]
-                if df["EMA_12"].iloc[-1] < df["EMA_25"].iloc[-1]:
-                    incr1 = df["EMA_12"].iloc[-1]/df["EMA_12"].iloc[-2]
-                    incr2 = df["EMA_25"].iloc[-1]/df["EMA_25"].iloc[-2]
-                    if (df["EMA_12"].iloc[-1] * incr1 * incr1 * incr1) >= (df["EMA_25"].iloc[-1] * incr2 * incr2 * incr2):
-                        golden_crosses.append({"Stock": symbol, "PERCENTILE EXTENSION to 10 WEEKLY MOVING AVERAGE": round(stats.percentileofscore(data[0]["extension_ema50"].dropna(), data[0]["extension_ema50"].iloc[-1], kind='rank'), 1)})    
-            except Exception as e:
-                print(e)
-        return pd.DataFrame(golden_crosses)  
+        df_ordered = pd.DataFrame(rows, columns=columns)
+        df_ordered = df_ordered.sort_values(by="Avg-Corr", ascending=False)
+        return df_ordered
     except Exception as e:
-        print(e)             
+        print(e)
 
+
+def golden_cross(df):
+    if df["EMA_12"].iloc[-1] < df["EMA_25"].iloc[-1]:
+        incr1 = df["EMA_12"].iloc[-1]/df["EMA_12"].iloc[-2]
+        incr2 = df["EMA_25"].iloc[-1]/df["EMA_25"].iloc[-2]
+        if (df["EMA_12"].iloc[-1] * incr1 * 1.001) > (df["EMA_25"].iloc[-1] * incr2):
+            return True      
+    return False
+
+
+def relative_return(entry, value):
+    num = float(value)  
+    return round(((num / entry) - 1) * 100, 1)
+
+def golden_cross_performance(entry, df):
+    row = []
+    for i in range(len(df)):
+        for k in ["Open", "Close", "High", "Low"]:
+            row.append(relative_return(entry, df[k].iloc[i]))
+    return row
+
+
+def calculation_golden_crosses_history(symbol, timeframes, t):
+    if t == "weekly":
+        df = timeframes[1].copy()
+        df = df[-200:]
+        p = 200
+    elif t == "daily":
+        df = timeframes[0].copy()
+        df = df[-1300:]
+        p = 1300
+    golden_crosses = []
+    row = []
+    columns = ["D" + str(i) + k for i in range(1, 6) for k in ["Open", "Close", "High", "Low"]]
+    columns = ["Symbol", "Date", "Day", "Month(Q)", "D1%Month", "D1%Quarter", "D1%Year", "D0volume", "D1volume", "D0_xEma12", "D1_xEma12", "D0.EXT.10D", "D0.EXT.20D", "D0.EXT.10W", "D0.DAILY.RSI", "%D1vsEXT.10D.P95", "%D1vsEXT.10D.P99"] + columns
+    if len(df) >= p: # +- 2 años
+        for i in range(1, len(df)-1):
+            if golden_cross(df[i-1:i+1]) and ((df["EMA_12"].iloc[i+1] * 1.001) >= df["EMA_25"].iloc[i+1]):
+                daily_aux = timeframes[0].copy()
+                if t == 'weekly':
+                    today = daily_aux[(daily_aux.index > df.index[i]) & (daily_aux.index < df.index[i+1])]
+                    today = today.iloc[-1:]
+                elif t == 'daily':
+                    today = df.iloc[i:i+1]                    
+                
+                daily_aux = daily_aux[daily_aux.index >= df.index[i+1]].copy()
+                D0incr12, D1incr12 = 0, 0
+                
+                if len(daily_aux) >= 5: 
+                    daily = daily_aux[0:5].copy()
+                    D0incr12 = round(((df["EMA_12"].iloc[i]/df["EMA_12"].iloc[i-1])-1)*100, 2)
+                    D1incr12 = round(((daily["EMA_12"].iloc[0]/df["EMA_12"].iloc[i])-1)*100, 2)
+                    daily_extensions = timeframes[0][timeframes[0].index < df.index[i+1]]
+                    weekly_extensions = timeframes[1][timeframes[1].index < df.index[i+1]]
+                    d10 = stats.percentileofscore(daily_extensions["extension_ema10"].dropna(), df["extension_ema10"].iloc[i], kind='rank')
+                    d20 = stats.percentileofscore(daily_extensions["extension_ema20"].dropna(), df["extension_ema20"].iloc[i], kind='rank')
+                    w10 = stats.percentileofscore(weekly_extensions["extension_ema10"].dropna(), df["extension_ema10"].iloc[i], kind='rank')
+                    rsi = stats.percentileofscore(daily_extensions["rsi"].dropna(), df["rsi"].iloc[i], kind='rank')
+                    upsideP95ext10 = round(daily_extensions["extension_ema10"].quantile(0.95) - daily["extension_ema10"].iloc[0], 1)
+                    upsideP99ext10 = round(daily_extensions["extension_ema10"].quantile(0.99) - daily["extension_ema10"].iloc[0], 1)
+                    monthly = timeframes[2][(timeframes[2].index.year == daily.index[0].year) & (timeframes[2].index.month == daily.index[0].month)]
+                    D1vsMO = round(((daily["Close"].iloc[0] / monthly["Open"].iloc[0]) - 1) * 100, 1)
+                    q = (daily.index[0].month - 1) // 3 + 1
+                    quarter = timeframes[2][(timeframes[2].index.year == daily.index[0].year) & (timeframes[2].index.month == (3*(q-1))+1)]
+                    D1vsQO = round(((daily["Close"].iloc[0] / quarter["Open"].iloc[0]) - 1) * 100, 1)
+                    yearly = timeframes[2][(timeframes[2].index.year == daily.index[0].year) & (timeframes[2].index.month == 1)]
+                    D1vsYO = round(((daily["Close"].iloc[0] / yearly["Open"].iloc[0]) - 1) * 100, 1)
+                    D0volume_percentil = stats.percentileofscore(daily_extensions["Volume"].dropna(), df["Volume"].iloc[i], kind='rank')
+                    D1volume_percentil = stats.percentileofscore(daily_extensions["Volume"].dropna(), daily["Volume"].iloc[0], kind='rank')
+                    row = [symbol, df.index[i], df.index[i].day, ((df.index[i].month - 1) % 3) + 1, D1vsMO, D1vsQO, D1vsYO, round(D0volume_percentil,0), round(D1volume_percentil,0), D0incr12, D1incr12, round(d10,0), round(d20,0), round(w10,0), round(rsi,0), upsideP95ext10,  upsideP99ext10] + golden_cross_performance(df["Close"].iloc[i], daily)
+                    golden_crosses.append(row)
+        df_stats = pd.DataFrame(golden_crosses, columns=columns)
+        if not df_stats.empty:
+            return df_stats
+    return pd.DataFrame() # calcular la volatilidad del activo general y actual?    
+    
+
+def golden_cross_screener(t):
+    try:
+        symbols_aux = get_sp500_symbols() + get_nasdaq_non_sp500() + get_commodities_symbols() + get_crypto_symbols() + get_china_symbols() + get_japan_adrs_symbols() + get_european_symbols()
+        symbols = list(dict.fromkeys(symbols_aux))
+        golden_crosses = pd.DataFrame()
+        for symbol in symbols:            
+            print(symbol)
+            data_aux = preparing_timeframes(symbol, "")
+            data = calculation_ema_extension(data_aux)
+            if len(data[0]) >= 2000:
+                try:
+                    df_symbol = calculation_golden_crosses_history(symbol, data, t)
+                    if not df_symbol.empty:
+                        golden_crosses = pd.concat([golden_crosses, df_symbol], ignore_index=True)
+                except:
+                    pass
+        print(golden_crosses)
+        golden_crosses["mx1wk"] = golden_crosses[["D2High", "D3High", "D4High", "D5High"]].max(axis=1)
+        golden_crosses["min1wk"] = golden_crosses[["D2Low", "D3Low", "D4Low", "D5Low"]].min(axis=1)
+        golden_crosses["MoveToCatch"] = round(golden_crosses["mx1wk"] - golden_crosses["D1Close"],2)
+        golden_crosses["SL"] = round(golden_crosses["min1wk"] - golden_crosses["D1Close"],2)
+        golden_crosses["R:R"] = round(golden_crosses["MoveToCatch"] / golden_crosses["SL"], 2)
+        df_ordered = golden_crosses.sort_values(by="mx1wk", ascending=False)
+        print("SET-UPS TOTALES", len(df_ordered), round(df_ordered["mx1wk"].mean(), 2), round(df_ordered["min1wk"].mean(), 2))
+        df_ordered.to_csv("excels/golden_crosses.csv")
+        return df_ordered 
+    except Exception as e:
+        print(e)   
 
 
 def relative_strenght_screener():
     pass
 
 
+def row_stats(data):
+    try:
+        df = data[0].copy()
+        d10 = stats.percentileofscore(df["extension_ema10"].dropna(), df["extension_ema10"].iloc[-1], kind='rank')
+        d20 = stats.percentileofscore(df["extension_ema20"].dropna(), df["extension_ema20"].iloc[-1], kind='rank')
+        w10 = stats.percentileofscore(data[1]["extension_ema10"].dropna(), data[0]["extension_ema10"].iloc[-1], kind='rank')
+        upsideP95ext10 = round(df["extension_ema10"].quantile(0.95) - df["extension_ema10"].iloc[-1], 1)
+        upsideP99ext10 = round(df["extension_ema10"].quantile(0.99) - df["extension_ema10"].iloc[-1], 1)
+        monthly = data[2][(data[2].index.year == df.index[-1].year) & (data[2].index.month == df.index[-1].month)]
+        returnMO = round(((df["Close"].iloc[-1] / monthly["Open"].iloc[0]) - 1) * 100, 1)
+        returnMOLast = round(((df["Close"].iloc[-2] / monthly["Open"].iloc[0]) - 1) * 100, 1)
+        q = (df.index[-1].month - 1) // 3 + 1
+        quarter = data[2][(data[2].index.year == df.index[-1].year) & (data[2].index.month == q)]
+        returnQO = round(((df["Close"].iloc[-1] / quarter["Open"].iloc[0]) - 1) * 100, 1)
+        returnQOLast = round(((df["Close"].iloc[-2] / quarter["Open"].iloc[0]) - 1) * 100, 1)
+        yearly = data[2][(data[2].index.year == df.index[-1].year) & (data[2].index.month == 1)]
+        returnYO = round(((df["Close"].iloc[-1] / yearly["Open"].iloc[0]) - 1) * 100, 1)
+        returnYOLast = round(((df["Close"].iloc[-2] / yearly["Open"].iloc[0]) - 1) * 100, 1)
+        volume_percentil = round(stats.percentileofscore(df["Volume"].dropna(), df["Volume"].iloc[-1], kind='rank'), 1)
+        xEMA12 = round(((df["EMA_12"].iloc[-1]/df["EMA_12"].iloc[-2])-1)*100, 2)
+        DAY = df.index[-1].day
+        MonthQ = ((df.index[-1].month - 1) % 3) + 1
+        D1Close = round(((df["Close"].iloc[-1] / df["Close"].iloc[-2]) - 1) * 100, 1)
+        row = [returnMO, returnQO, returnYO, returnMOLast, returnQOLast, returnYOLast, round(d10,0), round(d20,0), round(w10,0), upsideP95ext10, upsideP99ext10, xEMA12, volume_percentil, D1Close, DAY, MonthQ]
+        return row
+    except Exception as e:
+        print(e)
+        return False
 
 
+def calculation_12_25_cross():
+    columns = ["Symbol", "%MonthLast", "%QuarterLast", "%YearLast", "%Month", "%Quarter", "%Year", "Ext10d", "Ext20d", "Ext10w", "Ext10dp95", "Ext10dp99", "xEma12", "Vol", "D1Close", "Day", "Month(Q)"]
+    planning = pd.DataFrame(columns=columns)
+    execution = pd.DataFrame(columns=columns)
+    symbols_aux = get_sp500_symbols() + get_nasdaq_non_sp500() + get_commodities_symbols() + get_crypto_symbols() + get_china_symbols() + get_japan_adrs_symbols() + get_european_symbols()
+    symbols = list(dict.fromkeys(symbols_aux))
+
+    for symbol in symbols:
+        print(symbol)
+        try:
+            data_aux = preparing_timeframes(symbol, "")
+            data = calculation_ema_extension(data_aux)
+            parameters = row_stats(data)
+            if parameters:
+                display = [symbol] + parameters
+                if golden_cross(data[0][-2:].copy()):
+                    planning.loc[len(planning)] = display
+                elif golden_cross(data[0][-3:-1].copy()):
+                    execution.loc[len(execution)] = display
+        except Exception as e:
+            print(e)    
+    planning = planning[(planning["xEma12"]>=0.1) & (planning["%Quarter"]>=-3) & (planning["Ext10dp99"]>=2)] # & (((planning["DAY"]>=1) & (planning["DAY"]<=10)) | ((planning["DAY"]>=25) & (planning["DAY"]<=31)))]  
+    execution = execution[(execution["xEma12"]>=0.1) & (execution["%Quarter"]>=0) & (execution["Ext10dp99"]>=2)] # & (((execution["DAY"]>=1) & (execution["DAY"]<=10)) | ((execution["DAY"]>=25) & (execution["DAY"]<=31)))]  
+    # & (planning["D1Close"]>=1) , & (planning["MONTH(Q)"] < 3)
+    return planning, execution
+
+
+
+def test_strategy(symbol):
+    try:
+        test = []
+        aux_timeframes = getDataStock(symbol)  
+        aux_timeframes2 = preparingData(aux_timeframes)
+        timeframes = calculation_ema_extension(aux_timeframes2)
+
+        for a in range(0, 1):
+            #h1 = round(random.uniform(0.85, 0.96),2) #h2 = round(random.uniform(0.97, 0.995),2)
+            #phigh = timeframes[0][:-365]["extension_low_ema10"].quantile(h1) #0.93 #phigh_stop = timeframes[0][:-365]["extension_high_ema10"].quantile(h2) #0.96
+            l1 = round(random.uniform(0.2, 0.02),2)
+            l2 = round(random.uniform(l1, 0.01),2)
+            plow = timeframes[0][:-730]["extension_low_ema10"].quantile(l1)
+            plow_stop = timeframes[0][:-730]["extension_low_ema10"].quantile(l2) 
+            #mean = timeframes[0][:-730]["extension_low_ema10"].mean()
+            std = timeframes[0][:-730]["extension_low_ema10"].std()
+            #plow = round(mean - std - std, 4)
+            #plow = timeframes[0][:-730]["extension_low_ema10"].quantile(0.07)
+            #plow_stop = round(mean - std - std - (std/2), 4)
+            data = last_X_years(timeframes, 2) 
+            df = data[0]
+            entry, take_profit, stop_loss = 0, 0, 0
+            long, short = False, False
+            cash = 1000
+            rows = []
+
+            for i in range(1, len(df)):
+                if long or short:
+                    if long:
+                        if df["High"].iloc[i] > take_profit and df["Low"].iloc[i] > stop_loss:
+                            profit = cash * ((take_profit/entry)-1)
+                            cash = cash + profit - 0.1
+                            rows.append({"side": "long", "entry": entry, "take_profit": take_profit, "stop_loss": stop_loss, "outcome": profit, "portfolio": cash})
+                            print("CLOSED LONG", symbol, df.index[i], "ENTRY", entry, "TP", take_profit, "SL", stop_loss, "PROFIT:", profit)
+                            long = False
+                        elif df["High"].iloc[i] < take_profit and df["Low"].iloc[i] < stop_loss:
+                            loss = cash * ((stop_loss / entry) - 1)
+                            cash = cash + loss - 0.1
+                            rows.append({"side": "long", "entry": entry, "take_profit": take_profit, "stop_loss": stop_loss, "outcome": loss, "portfolio": cash})
+                            print("STOPPED LONG", symbol, df.index[i], "ENTRY", entry, "TP", take_profit, "SL", stop_loss, "LOSS:", loss)
+                            long = False
+                        elif df["High"].iloc[i] > take_profit and df["Low"].iloc[i] < stop_loss:
+                            rows.append({"side": "cancelled", "entry": entry, "take_profit": take_profit, "stop_loss": stop_loss, "outcome": 0, "portfolio": cash})
+                            long = False
+                        else:
+                            correction = round((1-(0.001*abs(std))), 3)
+                            take_profit = ((df["EMA_10"].iloc[i] / df["EMA_10"].iloc[i-1]) * df["EMA_10"].iloc[i]) * correction
+                            stop_loss = df["EMA_10"].iloc[i] * (1+(plow_stop/100))  
+
+                    #elif short:
+                    #    if df["Low"].iloc[i] < take_profit and df["High"].iloc[i] < stop_loss:
+                    #        profit = (cash * (1 - (take_profit / entry)))
+                    #        cash = cash + profit - 1
+                    #        rows.append({"side": "short", "entry": entry, "take_profit": take_profit, "stop_loss": stop_loss, "outcome": profit, "portfolio": cash})
+                    #        print("CLOSED SHORT", symbol, df.index[i], "ENTRY", entry, "TP", take_profit, "SL", stop_loss, "PROFIT:", profit)
+                    #        short = False
+                    #    elif df["Low"].iloc[i] > take_profit and df["High"].iloc[i] > stop_loss:
+                    #        loss = cash * (1 - (stop_loss / entry))
+                    #        cash = cash + loss - 1
+                    #        rows.append({"side": "short", "entry": entry, "take_profit": take_profit, "stop_loss": stop_loss, "outcome": loss, "portfolio": cash})
+                    #        print("STOPPED SHORT", symbol, df.index[i], "ENTRY", entry, "TP", take_profit, "SL", stop_loss, "LOSS:", loss)
+                    #        short = False
+                    #        stopped = True
+                    #    elif df["High"].iloc[i] < take_profit and df["Low"].iloc[i] > stop_loss:
+                    #        rows.append({"side": "cancelled", "entry": entry, "take_profit": take_profit, "stop_loss": stop_loss, "outcome": 0, "portfolio": cash})
+                    #        short = False
+                    #    else:
+                    #        take_profit = ((df["EMA_10"].iloc[i] / df["EMA_10"].iloc[i-1]) * df["EMA_10"].iloc[i]) * 1.0025
+                    #        #stop_loss = df["EMA_10"].iloc[i] * (1+(phigh_stop/100)) 
+                else:                
+                    if df["extension_low_ema10"].iloc[i] <= plow:
+                        long = True
+                        entry = df["EMA_10"].iloc[i] * (1+(plow/100)) #(df["Close"].iloc[i] + df["Low"].iloc[i]) / 2
+                        take_profit = ((df["EMA_10"].iloc[i] / df["EMA_10"].iloc[i-1]) * df["EMA_10"].iloc[i]) * 0.995
+                        stop_loss = df["EMA_10"].iloc[i] * (1+(plow_stop/100)) 
+                        print("LONG", symbol, df.index[i], "ENTRY", entry, "TP", take_profit, "SL", stop_loss)
+                        if df["extension_low_ema10"].iloc[i] <= plow_stop:  
+                            loss = cash * ((stop_loss / entry) - 1)
+                            cash = cash + loss - 0.1
+                            rows.append({"side": "long", "entry": entry, "take_profit": take_profit, "stop_loss": stop_loss, "outcome": loss, "portfolio": cash})
+                            print("STOPPED LONG", symbol, df.index[i], "ENTRY", entry, "TP", take_profit, "SL", stop_loss, "LOSS:", loss)
+                            long = False
+
+                        #elif df["extension_high_ema10"].iloc[i] >= phigh:
+                        #    short = True
+                        #    entry = df["EMA_10"].iloc[i] * (1+(phigh/100)) #(df["Close"].iloc[i] + df["High"].iloc[i]) / 2
+                        #    take_profit = (df["EMA_10"].iloc[i] / df["EMA_10"].iloc[i-1]) * df["EMA_10"].iloc[i]
+                        #    stop_loss = df["EMA_10"].iloc[i] * (1+(phigh_stop/100)) 
+                        #    print("SHORT", symbol, df.index[i], "ENTRY", entry, "TP", take_profit, "SL", stop_loss)
+            df_strategy = pd.DataFrame(rows)
+            if not df_strategy.empty:
+                df_win = df_strategy[df_strategy["outcome"] > 0].copy()
+                if not df_win.empty:
+                    df_win["Return"] = round((df_win["outcome"] / (df_win["portfolio"] - df_win ["outcome"])) * 100,1)
+                    returnPerWin = df_win["Return"].mean()
+                else:
+                    returnPerWin = 0
+                df_loss = df_strategy[df_strategy["outcome"] < 0].copy()
+                df_cancelled = df_strategy[df_strategy["outcome"] == 0].copy() #que pasa si entro cuando viene rebotando de abajo, por si la primera caida es muy violenta
+                if len(df_win) == 0:
+                    hitrate = 0
+                elif len(df_loss) == 0:
+                    hitrate = 1
+                else:
+                    hitrate = round(len(df_win)/(len(df_loss)+len(df_win)),1)
+                test.append({"symbol": symbol, "portfolio": round(cash,1), "trades": len(df_strategy), "hitrate": hitrate, "%ReturnWins": round(returnPerWin,1), "cancelled": len(df_cancelled), "plow": plow, "plow_stop": plow_stop, "correction": correction})    
+        print("processing dataframe to show")
+        if len(test) > 0:
+            df = pd.DataFrame(test)   
+            df = df.sort_values(by='portfolio', ascending=False)
+            return df.iloc[0].to_dict()
+        else:
+            return False
+    except Exception as e:
+        print(e)
+        return False
+
+
+def test_strategy_all_symbols():
+    symbols = get_hyperliquid_symbols() + get_forex_symbols()
+    with ProcessPoolExecutor(max_workers=10) as executor:
+        rows = list(executor.map(test_strategy, symbols))    
+    data_rows = [x for x in rows if x is not False]
+    df = pd.DataFrame(data_rows)   
+    df = df.sort_values(by='portfolio', ascending=False)
+    print("plow", df["plow"].mean(), "plow_stop", df["plow_stop"].mean()) #, "phigh", df["phigh"].mean(), "phigh_stop", df["phigh_stop"].mean())
+    df.to_csv("test_strategy_symbols.csv") 
+    return df
+
+
+def calculation_patterns():
+    try:
+        all_patterns = ['GGG','GGR','GRG','GRR','RRR','RRG','RGR','RGG']
+        green_patterns = ['GGG', 'GGR', 'GRG', 'GRR']
+        red_patterns   = ['RRR', 'RRG', 'RGR', 'RGG']
+        gg_patterns = ['GGG', 'GGR']
+        gr_patterns = ['GRG', 'GRR']
+        rr_patterns = ['RRR', 'RRG']
+        rg_patterns = ['RGR', 'RGG']
+        symbols = getSymbols()
+        data = []
+        for symbol in symbols:
+            data_aux = preparing_timeframes(symbol, "monthly")
+            monthly = data_aux[2].copy()
+            monthly['year']       = monthly.index.year
+            monthly['quarter']    = monthly.index.quarter
+            monthly['month_of_q'] = monthly.index.month - (monthly['quarter'] - 1) * 3
+            results = []
+            for (year, quarter), group in monthly.groupby(['year', 'quarter']):
+                group = group.sort_values('month_of_q')
+                if len(group) != 3:
+                    continue
+                pattern = ''.join(group['type'].map({'Green': 'G', 'Red': 'R'}).tolist())
+                results.append({
+                    'symbol':  symbol,
+                    'year':    year,
+                    'quarter': quarter,
+                    'pattern': pattern,
+                })
+            df_patterns = pd.DataFrame(results)
+            if not df_patterns.empty:
+                pattern_counts = (df_patterns.groupby('pattern').size().reindex(all_patterns, fill_value=0))
+                total = pattern_counts.sum()
+                pattern_formatted = pattern_counts.apply(lambda x: f"{round(x/total*100)}% ({x})" if total > 0 else "0% (0)")
+                row = {'symbol': symbol} | pattern_formatted.to_dict()
+                data.append(row)
+                total_green = pattern_counts[green_patterns].sum()
+                total_red   = pattern_counts[red_patterns].sum()
+                pattern_green = pattern_counts[green_patterns].apply(lambda x: f"{round(x/total_green*100)}% ({x})" if total_green > 0 else "0% (0)")
+                pattern_red   = pattern_counts[red_patterns].apply(lambda x: f"{round(x/total_red*100)}% ({x})"   if total_red   > 0 else "0% (0)")
+                row = {'symbol': symbol} | pattern_green.to_dict() | pattern_red.to_dict()
+                data.append(row)
+                total_gg = pattern_counts[gg_patterns].sum()
+                total_gr = pattern_counts[gr_patterns].sum()
+                total_rr = pattern_counts[rr_patterns].sum()
+                total_rg = pattern_counts[rg_patterns].sum()                
+                pattern_gg = pattern_counts[gg_patterns].apply(lambda x: f"{round(x/total_gg*100)}% ({x})" if total_gg > 0 else "0% (0)")
+                pattern_gr = pattern_counts[gr_patterns].apply(lambda x: f"{round(x/total_gr*100)}% ({x})" if total_gr > 0 else "0% (0)")
+                pattern_rr = pattern_counts[rr_patterns].apply(lambda x: f"{round(x/total_rr*100)}% ({x})" if total_rr > 0 else "0% (0)")
+                pattern_rg = pattern_counts[rg_patterns].apply(lambda x: f"{round(x/total_rg*100)}% ({x})" if total_rg > 0 else "0% (0)")
+                row = {'symbol': symbol} | pattern_gg.to_dict() | pattern_gr.to_dict() | pattern_rr.to_dict() | pattern_rg.to_dict()
+                data.append(row)
+        return pd.DataFrame(data)
+    except Exception as e:
+        print(e)
 
 
 #def calculation_cycle_returns():
