@@ -1225,6 +1225,138 @@ def calculation_patterns():
         print(e)
 
 
+def calculation_drawdowns_ema_10_20(N=8, min_days_above=20, vol_k=0.2, min_occurrences=10, neutral_threshold = 0.01):
+    symbols = get_sp500_symbols() + get_nasdaq_non_sp500()# + get_china_symbols() + get_european_symbols() + get_commodities_symbols() + get_crypto_symbols()
+    symbols = list(dict.fromkeys(symbols))
+    rows = []
+
+    for symbol in symbols:
+        print("EMA DRAWDOWN:", symbol)
+        try:
+            data_aux = preparing_timeframes(symbol, "")
+            daily = data_aux[0].copy()
+            # volatilidad rolling: std de returns diarios en ventana 20 dias
+            daily["vol"] = daily["Close"].pct_change().rolling(20).std()
+            daily = daily.iloc[20:].reset_index(drop=False)
+
+            ema_cols = {"EMA_10": "EMA10", "EMA_20": "EMA20"}
+            row = {"Symbol": symbol_name_sustitution(symbol)}
+            row["Vol Avg%"] = round(daily["vol"].mean() * 100, 3)
+
+            for ema_col, label in ema_cols.items():
+                buckets = [[] for _ in range(N)]
+                tol_i = daily["vol"].iloc[0] * vol_k
+                above = daily["Close"].iloc[0] >= daily[ema_col].iloc[0] * (1 - tol_i)
+                days_above = 1 if above else 0
+                tols_used = []
+
+                for i in range(1, len(daily) - N):
+                    tol_i = daily["vol"].iloc[i] * vol_k
+                    now_above = daily["Close"].iloc[i] >= daily[ema_col].iloc[i] * (1 - tol_i)
+                    if days_above >= min_days_above and not now_above:
+                        ref = daily[ema_col].iloc[i] * (1 - (tol_i*2)) # Para las tolerancias altas igual es corte meh el * 2 aunque sigue siendo beneficioso
+                        tols_used.append(tol_i * 100)
+                        for d in range(N):
+                            close_d = daily["Close"].iloc[i + 1 + d]
+                            buckets[d].append(((close_d - ref) / ref) * 100)
+                    days_above = days_above + 1 if now_above else 0
+                    above = now_above
+
+                row[f"{label} Occurrences"] = f"{len(buckets[0])}n"
+                row[f"{label} Avg Tol%"] = round(np.mean(tols_used), 3) if tols_used else 0
+                for d in range(N):
+                    row[f"{label} D{d+1} Avg"] = round(np.mean(buckets[d]), 2) if buckets[d] else 0
+                    row[f"{label} D{d+1} Med"] = round(np.median(buckets[d]), 2) if buckets[d] else 0
+            rows.append(row)
+        except Exception as e:
+            print(f"Error {symbol}: {e}")
+
+    df = pd.DataFrame(rows)
+
+    def parse_count(val):
+        try:
+            return int(str(val).replace("n", ""))
+        except:
+            return 0
+
+    neutral_threshold = 0.1
+
+    def build_summary_rows(group_df, prefix, N, neutral_threshold):
+        rows_out = []
+        names = [f"{prefix} AVG-G", f"{prefix} AVG-R", f"{prefix} MED-G", f"{prefix} MED-R"]
+        r_ag = {"Symbol": names[0]}
+        r_ar = {"Symbol": names[1]}
+        r_mg = {"Symbol": names[2]}
+        r_mr = {"Symbol": names[3]}
+        for label in ["EMA10", "EMA20"]:
+            occ_col = f"{label} Occurrences"
+            eligible = group_df[group_df[occ_col].apply(parse_count) >= min_occurrences]
+            counts_avg, counts_med = [], []
+            for d in range(N):
+                col_avg = f"{label} D{d+1} Avg"
+                col_med = f"{label} D{d+1} Med"
+                for r in [r_ag, r_ar, r_mg, r_mr]:
+                    r.setdefault(col_avg, "")
+                    r.setdefault(col_med, "")
+
+                vals_avg = eligible[col_avg]
+                nn_avg = vals_avg[abs(vals_avg) > neutral_threshold]
+                g_a = (nn_avg > neutral_threshold).sum(); r_a = (nn_avg < -neutral_threshold).sum()
+                d_a = g_a + r_a; counts_avg.append(int(d_a))
+                r_ag[col_avg] = f"{round((g_a/d_a)*100,1)}%" if d_a > 0 else "0%"
+                r_ar[col_avg] = f"{round((r_a/d_a)*100,1)}%" if d_a > 0 else "0%"
+
+                vals_med = eligible[col_med]
+                nn_med = vals_med[abs(vals_med) > neutral_threshold]
+                g_m = (nn_med > neutral_threshold).sum(); r_m = (nn_med < -neutral_threshold).sum()
+                d_m = g_m + r_m; counts_med.append(int(d_m))
+                r_mg[col_med] = f"{round((g_m/d_m)*100,1)}%" if d_m > 0 else "0%"
+                r_mr[col_med] = f"{round((r_m/d_m)*100,1)}%" if d_m > 0 else "0%"
+
+            for r in [r_ag, r_ar]:
+                r[occ_col] = f"{int(round(np.mean(counts_avg),0))}n"
+            for r in [r_mg, r_mr]:
+                r[occ_col] = f"{int(round(np.mean(counts_med),0))}n"
+            for r in [r_ag, r_ar, r_mg, r_mr]:
+                r[f"{label} Avg Tol%"] = ""
+        return [r_ag, r_ar, r_mg, r_mr]
+
+    # dividir assets en terciles por volatilidad
+    df_assets = df[df["Vol Avg%"].notna() & (df["Vol Avg%"] > 0)].copy()
+    t25 = df_assets["Vol Avg%"].quantile(0.2)
+    t75 = df_assets["Vol Avg%"].quantile(0.8)
+    low_vol  = df_assets[df_assets["Vol Avg%"] <= t25]
+    mid_vol  = df_assets[(df_assets["Vol Avg%"] > t25) & (df_assets["Vol Avg%"] <= t75)]
+    high_vol = df_assets[df_assets["Vol Avg%"] > t75]
+
+    summary_rows = (
+        build_summary_rows(high_vol, "HIGH", N, neutral_threshold) +
+        build_summary_rows(mid_vol,  "MID",  N, neutral_threshold) +
+        build_summary_rows(low_vol,  "LOW",  N, neutral_threshold)
+    )
+
+    df_summary = pd.DataFrame(summary_rows)
+    df = pd.concat([df_summary, df], ignore_index=True)
+
+    df.to_csv("excels/drawdowns_ema_10_20.csv")
+    print(df)
+    return df
+
+
+def calculation_ema_trends():
+    symbols = get_sp500_symbols() + get_nasdaq_non_sp500()# + get_china_symbols() + get_european_symbols() + get_commodities_symbols() + get_crypto_symbols()
+    symbols = list(dict.fromkeys(symbols))
+    rows = []
+    
+    for symbol in symbols:
+        print("EMA DRAWDOWN:", symbol)
+        try:
+            data_aux = preparing_timeframes(symbol, "")
+        except Exception as e:
+            print(e)
+
+
+
 #def calculation_cycle_returns():
 #    symbols = getSymbols()
 #    rows = []

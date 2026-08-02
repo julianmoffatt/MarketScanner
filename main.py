@@ -32,6 +32,8 @@ def load_data(name):
             return calculation_cycle_peak_expansion_all_symbols()
         elif name[0:12] == "excels/gaps/":
             return calculation_closing_gaps(name[12:])
+        elif name == "excels/drawdowns_ema_10_20":
+            return calculation_drawdowns_ema_10_20()   
 
 tabs_styles = {
     'height': '60px',
@@ -177,9 +179,10 @@ app.layout = html.Div([
         dcc.Tab(label='R%', value='tab-27', style=tab_style, selected_style=tab_selected_style),
         dcc.Tab(label='CASH.S.', value='tab-25', style=tab_style, selected_style=tab_selected_style),
         dcc.Tab(label='Q.Pattern', value='tab-100', style=tab_style, selected_style=tab_selected_style),
-        dcc.Tab(label='Scr.Ext', value='tab-12', style=tab_style, selected_style=tab_selected_style),
-        dcc.Tab(label='Scr.Cr', value='tab-30', style=tab_style, selected_style=tab_selected_style),
-        dcc.Tab(label='Test', value='tab-test', style=tab_style, selected_style=tab_selected_style)
+        dcc.Tab(label='Drawdowns', value='tab-101', style=tab_style, selected_style=tab_selected_style),
+        dcc.Tab(label='Scr.Ext', value='tab-12', style=tab_style, selected_style=tab_selected_style)
+        #dcc.Tab(label='Scr.Cr', value='tab-30', style=tab_style, selected_style=tab_selected_style),
+        #dcc.Tab(label='Test', value='tab-test', style=tab_style, selected_style=tab_selected_style)
     ]
     ),
 
@@ -365,6 +368,10 @@ def render_content(stock, tab, n_clicks):
         df_100 = calculation_patterns()
         colours_tab_100 = colour_painting_quarter_patterns(df_100, current_stock)
         return table_fig(df_100, colours_tab_100)
+    elif tab == 'tab-101':
+        df_101 = load_data("excels/drawdowns_ema_10_20")
+        colours_tab_101 = colour_painting_return_color(df_101, current_stock)
+        return table_fig(df_101, colours_tab_101)
     else:
         pass
 

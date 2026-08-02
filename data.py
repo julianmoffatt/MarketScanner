@@ -3,8 +3,8 @@ import pandas as pd
 import numpy as np
 import time
 
-def getSymbols(): #"ASTS", "IREN", "NBIS", 
-    symbols = ["^GSPC", "ASTS", "RKLB", "NBIS", "MU", "NVDA", "GOOGL", "AAPL", "AMZN", "AMD", "MSFT", "NFLX", "META", "ORCL", "INTC", "TSLA", "BABA", "BIDU", "JD", "PLTR", "GC=F", "SI=F", "CL=F", "BTC-USD", "ETH-USD", "EURUSD=X", "GBPUSD=X", "USDJPY=X"]
+def getSymbols():
+    symbols = ["^GSPC", "ASTS", "RKLB", "IREN", "NBIS", "MU", "NVDA", "GOOGL", "AAPL", "AMZN", "AMD", "MSFT", "NFLX", "META", "ORCL", "INTC", "TSLA", "NVO", "BABA", "BIDU", "JD", "PLTR", "GC=F", "SI=F", "CL=F", "BTC-USD", "ETH-USD"]
     return symbols
 
 def get_hyperliquid_symbols():
@@ -193,6 +193,7 @@ def preparingData(data):
             df["Vol_Raw"] = np.log(df["High"] / df["Low"]) * 100
             df["Vol_EMA"] = df["Vol_Raw"].ewm(span=14, adjust=False).mean()
             df["EMA_10"] = df["Close"].ewm(span=10, adjust=False).mean()
+            df["EMA_20"] = df["Close"].ewm(span=20, adjust=False).mean()
             df["EMA_12"] = df["Close"].ewm(span=12, adjust=False).mean()
             df["EMA_25"] = df["Close"].ewm(span=25, adjust=False).mean()
         #df["Upper_wick"] = df["High"] - df[["Open", "Close"]].max(axis=1)
