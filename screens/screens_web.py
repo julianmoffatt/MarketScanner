@@ -1,4 +1,4 @@
-from screen_components import *
+from screens.screen_components import *
 
 def screen_daily_chart (data_candles):
     df = data_candles[0].tail(50).copy()
@@ -519,3 +519,62 @@ def screen_12_25_cross(planning, execution):
         return fig
     except Exception as e:
         print(e)
+
+
+def screen_trend_deviation(data, stock):
+    # total velas que abrieron >0.2% arriba de EMA10 y tuvieron low >0.2% abajo
+    open_above_low_below = data[(data["Open"] > data["EMA_10"] * 1.002) & (data["Low"] < data["EMA_10"] * 0.998)]
+    total_touches = len(open_above_low_below)
+    absorbed = len(open_above_low_below[open_above_low_below["Close"] > open_above_low_below["EMA_10"] * 1.002])
+    abs_pct = round(absorbed / total_touches * 100, 1) if total_touches > 0 else 0
+    stock_label = f"{stock} | Abs: {absorbed}/{total_touches} ({abs_pct}%)"
+
+    df1 = data[(data["EMA10_Absortion"] == True)].copy()
+    df2 = data[(data["EMA10_Absortion"] == True) & (data["MinClose1"] >= data["EMA_10"])].copy()
+    df3 = data[(data["EMA10_Absortion"] == True) & (data["MinClose2"] >= data["EMA_10"])].copy()
+    
+    try:
+        dfs = [df1, df2, df3]
+        titles = []
+        for df in dfs:
+            n = len(df)
+            avg_max = round(df["Max3Days"].median(), 2) if n > 0 else 0
+            avg_low = round(df["Low3Days"].mean(), 2) if n > 0 else 0
+            pct_lowgrab = round((df["LowGrab"] < 0).sum() / n * 100, 1) if n > 0 else 0
+            grab_mask = df["LowGrab"] < 0
+            grab_vals = df.loc[grab_mask, "LowGrab"]
+            low5_grab_vals = df.loc[grab_mask, "Low3Days"]
+            if not grab_vals.empty:
+                gmin = round(grab_vals.min(), 2)
+                gmed = round(grab_vals.median(), 2)
+                gmax = round(grab_vals.max(), 2)
+                lmin = round(low5_grab_vals.min(), 2)
+                lmed = round(low5_grab_vals.median(), 2)
+                lmax = round(low5_grab_vals.max(), 2)
+            else:
+                gmin = gmed = gmax = lmin = lmed = lmax = 0
+            titles.append(f"n={n} | Max3D={avg_max}% Low5D={avg_low}%<br>Grab<0={pct_lowgrab}% LG:{gmin}/{gmed}/{gmax} L3:{lmin}/{lmed}/{lmax}")
+
+        fig = make_subplots(rows=1, cols=3, vertical_spacing=0.11, horizontal_spacing=0.04, subplot_titles=titles)
+        color = "blue"
+        percentil_value = [0.10, 0.50, 0]
+        percentil_name = ["p90", "p50", "EMA"]
+        percentil_color = ["black", "purple", "black"]
+        percentil_location = ["top right", "top right", "right"]
+        for col, df in enumerate(dfs):
+            if df.empty:
+                continue
+            df = df.iloc[:-3].copy() if len(df) > 3 else df.copy()
+            if df.empty:
+                continue
+            current_value = df["DeviationEMA"].iloc[-1]
+            current_day = df.index[-1]
+            fig.add_trace(go.Scatter(x=df.index, y=df["DeviationEMA"], mode="markers", marker=dict(color=color, size=6), showlegend=False, opacity=0.75), row=1, col=1+col)
+            fig = percentiles_and_currentValue(fig, df, 1, 1+col, "DeviationEMA", current_value, current_day, percentil_value, percentil_name, percentil_color, percentil_location)
+        fig = title_stock(fig, stock_label)
+        return fig
+    except Exception as e:
+        print(e)
+
+
+

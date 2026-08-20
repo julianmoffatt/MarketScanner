@@ -1,10 +1,10 @@
 import numpy as np
 import random
-from functions import * 
 import pandas as pd
-from data import *
+from data.data import *
 from scipy import stats
 from concurrent.futures import ProcessPoolExecutor
+from data.assets import Assets
 
 # Calculation of strikes probabilities
 def calculation_StrikesProbabilities(data):
@@ -109,106 +109,86 @@ def append_values_row(row, df, num):
             row.append(0)
     return row
 
-   
-def cycle_dynamics_calculation(symbol, df, open, marginK, timeframe):  
-    try:
-        timeframe = timeframe.upper()
-        print(timeframe)
-        if timeframe == "WEEKLY":
-            m = 0.8
-        elif timeframe == "MONTHLY":
-            m = 0.02
-        elif timeframe == "QUARTERLY":
-            m = 0.025
-        elif timeframe == "YEARLY": 
-            m = 0.03
-        flips, lastFlip, side = 0, 1, 0
-        sides = {1:0, 0:1}
-        if df.iloc[0]["Close"] >= open:
-            side = 1
-        else:
-            side = 0
-        for k in range (1, len(df)):
-            vol_ema = df.iloc[k]["Vol_EMA"]
-            aux_margin = np.exp(vol_ema * marginK / 100)
-            if aux_margin > 1.03:
-                upper_threshold = open * 1.025
-                lower_threshold = open * 0.975
-            elif aux_margin < m:
-                upper_threshold = open * (1 + m)
-                lower_threshold = open * (1 - m)
-            else:
-                upper_threshold = open * np.exp(vol_ema * marginK / 100)
-                lower_threshold = open * np.exp(-vol_ema * marginK / 100)
 
-            if ((df.iloc[k]["Close"] > upper_threshold) and (side == 0)) or ((df.iloc[k]["Close"] < lower_threshold) and (side == 1)):
+def cycle_dynamics_calculation(symbol, df, open, timeframe, df_vol, vol_p10, vol_p90, TIMEFRAME_WEIGHT):
+    try:
+        threshold = 0
+        vol_k = 1
+        weight = TIMEFRAME_WEIGHT.get(timeframe.upper(), 1.0)
+        flips, lastFlip, side = 0, 1, 0
+        sides = {1: 0, 0: 1}
+        side = 1 if df.iloc[0]["Close"] >= open else 0
+
+        for k in range(1, len(df)):
+            vol_now = df_vol.iloc[k] if k < len(df_vol) and not np.isnan(df_vol.iloc[k]) else vol_p10
+            threshold = np.clip(vol_now * vol_k * weight, vol_p10 * vol_k * weight, vol_p90 * vol_k * weight)
+            upper_threshold = open * (1 + threshold / 100)
+            lower_threshold = open * (1 - threshold / 100)
+
+            if ((df.iloc[k]["Close"] > upper_threshold) and (side == 0)) or \
+               ((df.iloc[k]["Close"] < lower_threshold) and (side == 1)):
                 side = sides[side]
-                flips = flips + 1
-                lastFlip = k + 1                
-                print(symbol, "|| FLIP", " || ", df.index[k], " || ", df.iloc[k]["Close"], "|| Margin to count the flip", round(((upper_threshold - open)/open)*100, 2), " || ", round(vol_ema,1), "(", round(aux_margin,1), ")")
-        return flips, lastFlip
+                flips += 1
+                lastFlip = k + 1
+                print(symbol, "|| FLIP ||", df.index[k], "||", df.iloc[k]["Close"],
+                      "|| threshold:", round(threshold, 2), "%", timeframe)
+        return flips, lastFlip, round(threshold, 2)
     except Exception as e:
         print(e) 
 
 
-def cycle_dynamics(symbol, data, lower_timeframe):
+def cycle_dynamics(symbol, data, lower_timeframe, TIMEFRAME_WEIGHT):
     timeframe = ["WEEKLY", "MONTHLY", "QUARTERLY"]
     parameters = []
     if lower_timeframe == "daily":
-        timeframe = ["WEEKLY", "MONTHLY", "QUARTERLY"]
-        margin = 0.125
+        timeframe = ["WEEKLY", "MONTHLY", "QUARTERLY", "YEARLY"]
         t = 0
         parameters = [pd.Timedelta(days=7), pd.offsets.MonthBegin(1), pd.offsets.MonthBegin(3)]
     elif lower_timeframe == "weekly":
         timeframe = ["MONTHLY", "QUARTERLY", "YEARLY"]
-        margin = 0.075
         t = 1
         parameters = [pd.offsets.MonthBegin(1), pd.offsets.MonthBegin(3), pd.offsets.MonthBegin(12)]
     elif lower_timeframe == "monthly":
         timeframe = ["QUARTERLY", "YEARLY"]
-        margin = 0.05
         t = 2
         parameters = [pd.offsets.MonthBegin(3), pd.offsets.MonthBegin(12)]
     
     LT = data[t][14:].copy()
+
+    # volatilidad histórica del LT completo — log-returns rolling 20, percentiles para clamps
+    LT_vol = np.log(LT["Close"] / LT["Close"].shift(1)).rolling(20).std() * 100
+    vol_p10 = LT_vol.quantile(0.10)
+    vol_p90 = LT_vol.quantile(0.90)
+
     timeframes_cycles = []
     end = []
     for k in range(len(parameters)):
         end.append(pd.to_datetime((data[k+1+t].index[-1] + parameters[k]), utc=True))
-   
+
     p = 0
     for i in range (1+t, len(data)):
-        
         HT = data[i].copy()
         LT = LT[LT.index < end[i-1-t]]
         MT = pd.DataFrame()
         if lower_timeframe == "weekly":
             MT = data[0][14:].copy()
-        
-        cycle = pd.DataFrame(columns=["Date", "Open", "Flips", "LastFlip", "Direction", "Return"])
+
+        cycle = pd.DataFrame(columns=["Date", "Open", "Flips", "LastFlip", "Threshold", "Direction", "Return"])
 
         for x in range(0, len(HT)-1):
             df = LT[(LT.index >= HT.index[x]) & (LT.index < HT.index[x+1])]
             if df.empty:
                 continue
-            if lower_timeframe == "weekly":
-                df_partialweek = MT[(MT.index >= HT.index[x]) & (MT.index < df.index[0])]
-                if not df_partialweek.empty and len(df_partialweek) == 4:
-                    df = merge_partialweek(df, df_partialweek)
+            df_vol = LT_vol.reindex(df.index)
             print(timeframe[i-1-t], "| OPEN:", HT.iloc[x]["Open"], "| CLOSE:", HT.iloc[x]["Close"], "| DATE:", HT.index[x])
-            if lower_timeframe == "weekly":
-                print(df)
-            params = cycle_dynamics_calculation(symbol, df, HT.iloc[x]["Open"], margin, timeframe[p])
-            cycle.loc[len(cycle)] = [HT.index[x], round(HT.iloc[x]["Open"], 1), params[0], params[1], HT.iloc[x]["type"], HT.iloc[x]["Return"]]
+            params = cycle_dynamics_calculation(symbol, df, HT.iloc[x]["Open"], timeframe[p], df_vol, vol_p10, vol_p90, TIMEFRAME_WEIGHT)
+            cycle.loc[len(cycle)] = [HT.index[x], round(HT.iloc[x]["Open"], 1), params[0], params[1], params[2], HT.iloc[x]["type"], HT.iloc[x]["Return"]]
 
         df = LT[(LT.index >= HT.index[-1])]
         if not df.empty:
-            if lower_timeframe == "weekly":
-                df_partialweek = MT[(MT.index >= HT.index[x]) & (MT.index < df.index[0])]
-                if not df_partialweek.empty and len(df_partialweek) == 4:
-                    df = merge_partialweek(df, df_partialweek)
-            params = cycle_dynamics_calculation(symbol, df, HT.iloc[-1]["Open"], margin, timeframe[p])
-            cycle.loc[len(cycle)] = [HT.index[-1], round(HT.iloc[-1]["Open"],1), params[0], params[1], HT.iloc[x]["type"], HT.iloc[x]["Return"]]
+            df_vol = LT_vol.reindex(df.index)
+            params = cycle_dynamics_calculation(symbol, df, HT.iloc[-1]["Open"], timeframe[p], df_vol, vol_p10, vol_p90, TIMEFRAME_WEIGHT)
+            cycle.loc[len(cycle)] = [HT.index[-1], round(HT.iloc[-1]["Open"],1), params[0], params[1], params[2], HT.iloc[x]["type"], HT.iloc[x]["Return"]]
         cycle.set_index("Date", inplace=True)
         timeframes_cycles.append(cycle)
         p += 1
@@ -225,6 +205,8 @@ def dataframe_candle_split(data):
 
 def calculation_cycle_flips_all_symbols(lower_timeframe, symbols):
     try:
+        assets = Assets()
+        TIMEFRAME_WEIGHT = {"WEEKLY": 0.50, "MONTHLY": 1, "QUARTERLY": 1.25, "YEARLY": 2}
         timeframes_name = ["weekly", "monthly", "quarterly"]
         if lower_timeframe == "daily":
             timeframes_name = ["weekly", "monthly", "quarterly"]
@@ -254,7 +236,7 @@ def calculation_cycle_flips_all_symbols(lower_timeframe, symbols):
         for symbol in symbols:
             print(symbol)
             data_candles = preparing_timeframes(symbol, lower_timeframe)
-            dfs = cycle_dynamics(symbol, data_candles, lower_timeframe)
+            dfs = cycle_dynamics(symbol, data_candles, lower_timeframe, TIMEFRAME_WEIGHT)
 
             # 1. Define la configuración para cada DataFrame en dfs # [rango_reindex, indices_a_guardar_en_df_final, usar_quantile]
             config = [
@@ -262,7 +244,7 @@ def calculation_cycle_flips_all_symbols(lower_timeframe, symbols):
                 [[0, 1, 2, 3, 4], True], # DataFrame 1 
                 [[0, 1, 2, 3, 4, 5], True]  # DataFrame 2
             ]
-            new_row = [symbol_name_sustitution(symbol)]
+            new_row = [assets.name_sustitution(symbol)]
 
             for i, df_item in enumerate(dfs):
                 flips_to_show, use_quantile = config[i]
@@ -300,7 +282,7 @@ def calculation_cycle_flips_all_symbols(lower_timeframe, symbols):
                 counts_A = df_aux[0]["Flips"].value_counts().reindex(range(10), fill_value=0).to_dict()
                 counts_B = df_aux[1]["Flips"].value_counts().reindex(range(10), fill_value=0).to_dict()
                 p_01 = round(df_aux[1]["LastFlip"].quantile(0.50), 1)
-                symbol_name = symbol_name_sustitution(symbol)+names[x]
+                symbol_name = assets.name_sustitution(symbol)+names[x]
                 row_details = [symbol_name]
                 print(counts_A)
                 print(counts_A.values())
@@ -337,18 +319,16 @@ def calculation_cycle_flips_all_symbols(lower_timeframe, symbols):
 
 def current_cycle_flips_all_symbols(lower_timeframe):
     try:
+        assets = Assets()
         timeframes_name = ["weekly", "monthly", "quarterly"]
         if lower_timeframe == "daily":
             t = 0
-            margin = 0.125
             timeframes_name = ["weekly", "monthly", "quarterly"]
         elif lower_timeframe == "weekly":
             t = 1
-            margin = 0.1
             timeframes_name = ["monthly", "quarterly", "yearly"]
         elif lower_timeframe == "monthly":
             t = 2
-            margin = 0.01
             timeframes_name = ["quarterly", "yearly"]
 
         symbols = getSymbols()
@@ -356,7 +336,11 @@ def current_cycle_flips_all_symbols(lower_timeframe):
         for symbol in symbols:
             row = {}
             print("i process", symbol)
-            data_candles = preparing_timeframes(symbol, lower_timeframe) 
+            data_candles = preparing_timeframes(symbol, lower_timeframe)
+            LT_full = data_candles[0+t]
+            LT_vol = np.log(LT_full["Close"] / LT_full["Close"].shift(1)).rolling(20).std() * 100
+            vol_p10 = LT_vol.quantile(0.10)
+            vol_p90 = LT_vol.quantile(0.90)
             symbol_flips = []
             row = {}
             p = 0
@@ -368,12 +352,13 @@ def current_cycle_flips_all_symbols(lower_timeframe):
                     if not df_partialweek.empty and len(df_partialweek) == 4:
                         lowerTimeframeCandles = merge_partialweek(lowerTimeframeCandles, df_partialweek)
                 open_price = data_candles[i].iloc[-1]["Open"]
-                flips, lastFlip = cycle_dynamics_calculation(symbol, lowerTimeframeCandles, open_price, margin, timeframes_name[p])
+                df_vol = LT_vol.reindex(lowerTimeframeCandles.index)
+                flips, lastFlip = cycle_dynamics_calculation(symbol, lowerTimeframeCandles, open_price, timeframes_name[p], df_vol, vol_p10, vol_p90)
                 if flips > 5:
-                    flips = 5 #represent a 5+ or a cell with the actual number
+                    flips = 5 #represent a 4+ or a cell with the actual number
                 symbol_flips.append([flips, lastFlip])
                 p += 1
-            row = {"symbol": symbol_name_sustitution(symbol)}
+            row = {"symbol": assets.name_sustitution(symbol)}
             for i, tf in enumerate(timeframes_name):
                 row[f"{tf}Flip"] = symbol_flips[i][0]
                 row[f"{tf}LastFlip"] = symbol_flips[i][1]
@@ -440,6 +425,7 @@ def calculation_ema_extension(data):
 
 def screener_ema_extensions():
     try:
+        assets = Assets()
         symbols = getSymbols()
         col_name_ema = ["extension_ema10", "extension_ema20"]
         timeframes_name = ["D"]
@@ -452,7 +438,7 @@ def screener_ema_extensions():
             data = preparing_timeframes(symbol, "")
             timeframes = calculation_ema_extension(data)
             timeframes = timeframes[0]
-            row = {"Stock": symbol_name_sustitution(symbol), "Price": round(timeframes["Close"].iloc[-1],1)}
+            row = {"Stock": assets.name_sustitution(symbol), "Price": round(timeframes["Close"].iloc[-1],1)}
             e = 0
             for col_name in col_name_ema:
                 current_value = timeframes[col_name].iloc[-1]
@@ -611,6 +597,7 @@ def calculation_closing_gaps(symbol):
 
 
 def calculation_closing_gaps_all_symbols():
+    assets = Assets()
     symbols = getSymbols()
     gaps_study = pd.DataFrame(columns=["Symbol", "Total Gaps", "Closed Ratio", "Days Open p20", "Days Open p50", "Days Open p80"])
 
@@ -624,7 +611,7 @@ def calculation_closing_gaps_all_symbols():
             percentil_10 = round(closedGaps["DaysOpen"].quantile(0.20), 2)
             percentil_50 = round(closedGaps["DaysOpen"].quantile(0.50), 2)
             percentil_90 = round(closedGaps["DaysOpen"].quantile(0.80), 2)
-            gaps_study.loc[len(gaps_study)] = [symbol_name_sustitution(symbol), totalGaps, round(len(closedGaps)/totalGaps, 2), percentil_10, percentil_50, percentil_90] 
+            gaps_study.loc[len(gaps_study)] = [assets.name_sustitution(symbol), totalGaps, round(len(closedGaps)/totalGaps, 2), percentil_10, percentil_50, percentil_90] 
             print("END GAPS", symbol)
     gaps_study.to_csv("excels/gapsallsymbols.csv")
     return gaps_study
@@ -678,6 +665,7 @@ def calculation_cycle_peak_expansion(data, stock):
 
 def calculation_cycle_peak_expansion_all_symbols():
     try:
+        assets = Assets()
         symbols = getSymbols()
         timeframes = ["Weekly", "Monthly"]
         columns = ["Symbol", "Type", "Occurrences"]
@@ -703,7 +691,7 @@ def calculation_cycle_peak_expansion_all_symbols():
             colour = ["Absolute", "Green", "Red"]
             k = 0
             for dataframe in (df_absolute, df_green, df_red):
-                info = [symbol_name_sustitution(symbol), colour[k], len(dataframe)]        
+                info = [assets.name_sustitution(symbol), colour[k], len(dataframe)]        
                 for p in [0.10,0.20,0.50,0.80,0.90]:
                     percentil = dataframe["PeakExpansion"].quantile(p)
                     info.append(round(percentil,0))
@@ -717,6 +705,7 @@ def calculation_cycle_peak_expansion_all_symbols():
 
 
 def calculation_cashsession_dynamics():
+    assets = Assets()
     rows = []
     symbols = get_hyperliquid_symbols()
     for symbol in symbols:
@@ -759,7 +748,7 @@ def calculation_cashsession_dynamics():
                     Red_Green = Red[Red["type"] == "Green"]
                     Red_Red = Red[Red["type"] == "Red"]
                     Red_Red_Beyond = Red_Red[Red_Red["Return"] < Red_Red[nameField[0+x]]]
-                    row["symbol"] = symbol_name_sustitution(symbol)
+                    row["symbol"] = assets.name_sustitution(symbol)
                     name = "NumGreen" + timeframes[x]
                     row[name] = len(Green)
                     name = "Green " + timeframes[x] + " (GreenDay)"
@@ -1225,8 +1214,9 @@ def calculation_patterns():
         print(e)
 
 
-def calculation_drawdowns_ema_10_20(N=8, min_days_above=20, vol_k=0.2, min_occurrences=10, neutral_threshold = 0.01):
-    symbols = get_sp500_symbols() + get_nasdaq_non_sp500()# + get_china_symbols() + get_european_symbols() + get_commodities_symbols() + get_crypto_symbols()
+def calculation_drawdowns_ema_10_20(N=5, min_days_above=5, vol_k=0.2, min_occurrences=100, neutral_threshold = 0.01):
+    assets = Assets()
+    symbols = get_sp500_symbols() + get_nasdaq_non_sp500() + get_china_symbols() + get_european_symbols() + get_commodities_symbols() + get_crypto_symbols()
     symbols = list(dict.fromkeys(symbols))
     rows = []
 
@@ -1239,12 +1229,12 @@ def calculation_drawdowns_ema_10_20(N=8, min_days_above=20, vol_k=0.2, min_occur
             daily["vol"] = daily["Close"].pct_change().rolling(20).std()
             daily = daily.iloc[20:].reset_index(drop=False)
 
-            ema_cols = {"EMA_10": "EMA10", "EMA_20": "EMA20"}
-            row = {"Symbol": symbol_name_sustitution(symbol)}
+            row = {"Symbol": assets.name_sustitution(symbol)}
             row["Vol Avg%"] = round(daily["vol"].mean() * 100, 3)
 
-            for ema_col, label in ema_cols.items():
-                buckets = [[] for _ in range(N)]
+            variants = [("EMA_10", "EMA10C", False), ("EMA_10", "EMA10L", True)]
+            for ema_col, label, use_low in variants:
+                buckets = [[] for _ in range(N + 1)]  # D0 + D1..DN
                 tol_i = daily["vol"].iloc[0] * vol_k
                 above = daily["Close"].iloc[0] >= daily[ema_col].iloc[0] * (1 - tol_i)
                 days_above = 1 if above else 0
@@ -1254,19 +1244,49 @@ def calculation_drawdowns_ema_10_20(N=8, min_days_above=20, vol_k=0.2, min_occur
                     tol_i = daily["vol"].iloc[i] * vol_k
                     now_above = daily["Close"].iloc[i] >= daily[ema_col].iloc[i] * (1 - tol_i)
                     if days_above >= min_days_above and not now_above:
-                        ref = daily[ema_col].iloc[i] * (1 - (tol_i*2)) # Para las tolerancias altas igual es corte meh el * 2 aunque sigue siendo beneficioso
+                        ref = daily[ema_col].iloc[i] * (1 - (tol_i*1.1))
                         tols_used.append(tol_i * 100)
+                        price_d0 = daily["Low"].iloc[i] if use_low else daily["Close"].iloc[i]
+                        buckets[0].append(((price_d0 - ref) / ref) * 100)
                         for d in range(N):
-                            close_d = daily["Close"].iloc[i + 1 + d]
-                            buckets[d].append(((close_d - ref) / ref) * 100)
+                            price_d = daily["Low"].iloc[i + 1 + d] if use_low else daily["Close"].iloc[i + 1 + d]
+                            buckets[d + 1].append(((price_d - ref) / ref) * 100)
                     days_above = days_above + 1 if now_above else 0
                     above = now_above
 
                 row[f"{label} Occurrences"] = f"{len(buckets[0])}n"
                 row[f"{label} Avg Tol%"] = round(np.mean(tols_used), 3) if tols_used else 0
+                row[f"{label} D0 Avg"] = round(np.mean(buckets[0]), 2) if buckets[0] else 0
+                row[f"{label} D0 Med"] = round(np.median(buckets[0]), 2) if buckets[0] else 0
                 for d in range(N):
-                    row[f"{label} D{d+1} Avg"] = round(np.mean(buckets[d]), 2) if buckets[d] else 0
-                    row[f"{label} D{d+1} Med"] = round(np.median(buckets[d]), 2) if buckets[d] else 0
+                    row[f"{label} D{d+1} Avg"] = round(np.mean(buckets[d+1]), 2) if buckets[d+1] else 0
+                    row[f"{label} D{d+1} Med"] = round(np.median(buckets[d+1]), 2) if buckets[d+1] else 0
+
+            # EMA10T: low toca 1x tolerancia, referencia en ese nivel, D0 = close del día
+            buckets_t = [[] for _ in range(N + 1)]
+            tols_used_t = []
+            tol_i = daily["vol"].iloc[0] * vol_k
+            days_above_t = 1 if daily["Close"].iloc[0] >= daily["EMA_10"].iloc[0] * (1 - tol_i) else 0
+            for i in range(1, len(daily) - N):
+                tol_i = daily["vol"].iloc[i] * vol_k
+                ema_thresh = daily["EMA_10"].iloc[i] * (1 - tol_i)
+                ref_t = daily["EMA_10"].iloc[i] * (1 - tol_i)
+                low_touches = daily["Low"].iloc[i] < ref_t
+                now_above = daily["Close"].iloc[i] >= ema_thresh
+                if days_above_t >= min_days_above and low_touches:
+                    tols_used_t.append(tol_i * 100)
+                    buckets_t[0].append(((daily["Close"].iloc[i] - ref_t) / ref_t) * 100)
+                    for d in range(N):
+                        buckets_t[d + 1].append(((daily["Close"].iloc[i + 1 + d] - ref_t) / ref_t) * 100)
+                days_above_t = days_above_t + 1 if now_above else 0
+
+            row["EMA10T Occurrences"] = f"{len(buckets_t[0])}n"
+            row["EMA10T Avg Tol%"] = round(np.mean(tols_used_t), 3) if tols_used_t else 0
+            row["EMA10T D0 Avg"] = round(np.mean(buckets_t[0]), 2) if buckets_t[0] else 0
+            row["EMA10T D0 Med"] = round(np.median(buckets_t[0]), 2) if buckets_t[0] else 0
+            for d in range(N):
+                row[f"EMA10T D{d+1} Avg"] = round(np.mean(buckets_t[d+1]), 2) if buckets_t[d+1] else 0
+                row[f"EMA10T D{d+1} Med"] = round(np.median(buckets_t[d+1]), 2) if buckets_t[d+1] else 0
             rows.append(row)
         except Exception as e:
             print(f"Error {symbol}: {e}")
@@ -1282,47 +1302,41 @@ def calculation_drawdowns_ema_10_20(N=8, min_days_above=20, vol_k=0.2, min_occur
     neutral_threshold = 0.1
 
     def build_summary_rows(group_df, prefix, N, neutral_threshold):
-        rows_out = []
-        names = [f"{prefix} AVG-G", f"{prefix} AVG-R", f"{prefix} MED-G", f"{prefix} MED-R"]
-        r_ag = {"Symbol": names[0]}
-        r_ar = {"Symbol": names[1]}
-        r_mg = {"Symbol": names[2]}
-        r_mr = {"Symbol": names[3]}
-        for label in ["EMA10", "EMA20"]:
+        r_g = {"Symbol": f"{prefix} G"}
+        r_r = {"Symbol": f"{prefix} R"}
+        for label in ["EMA10C", "EMA10L", "EMA10T"]:
             occ_col = f"{label} Occurrences"
-            eligible = group_df[group_df[occ_col].apply(parse_count) >= min_occurrences]
-            counts_avg, counts_med = [], []
-            for d in range(N):
-                col_avg = f"{label} D{d+1} Avg"
-                col_med = f"{label} D{d+1} Med"
-                for r in [r_ag, r_ar, r_mg, r_mr]:
+            eligible = group_df
+            counts = []
+            for day_label in ["D0"] + [f"D{d+1}" for d in range(N)]:
+                col_avg = f"{label} {day_label} Avg"
+                col_med = f"{label} {day_label} Med"
+                for r in [r_g, r_r]:
                     r.setdefault(col_avg, "")
                     r.setdefault(col_med, "")
 
                 vals_avg = eligible[col_avg]
                 nn_avg = vals_avg[abs(vals_avg) > neutral_threshold]
                 g_a = (nn_avg > neutral_threshold).sum(); r_a = (nn_avg < -neutral_threshold).sum()
-                d_a = g_a + r_a; counts_avg.append(int(d_a))
-                r_ag[col_avg] = f"{round((g_a/d_a)*100,1)}%" if d_a > 0 else "0%"
-                r_ar[col_avg] = f"{round((r_a/d_a)*100,1)}%" if d_a > 0 else "0%"
+                d_a = g_a + r_a; counts.append(int(d_a))
+                r_g[col_avg] = f"{round((g_a/d_a)*100,1)}%" if d_a > 0 else "0%"
+                r_r[col_avg] = f"{round((r_a/d_a)*100,1)}%" if d_a > 0 else "0%"
 
                 vals_med = eligible[col_med]
                 nn_med = vals_med[abs(vals_med) > neutral_threshold]
                 g_m = (nn_med > neutral_threshold).sum(); r_m = (nn_med < -neutral_threshold).sum()
-                d_m = g_m + r_m; counts_med.append(int(d_m))
-                r_mg[col_med] = f"{round((g_m/d_m)*100,1)}%" if d_m > 0 else "0%"
-                r_mr[col_med] = f"{round((r_m/d_m)*100,1)}%" if d_m > 0 else "0%"
+                d_m = g_m + r_m
+                r_g[col_med] = f"{round((g_m/d_m)*100,1)}%" if d_m > 0 else "0%"
+                r_r[col_med] = f"{round((r_m/d_m)*100,1)}%" if d_m > 0 else "0%"
 
-            for r in [r_ag, r_ar]:
-                r[occ_col] = f"{int(round(np.mean(counts_avg),0))}n"
-            for r in [r_mg, r_mr]:
-                r[occ_col] = f"{int(round(np.mean(counts_med),0))}n"
-            for r in [r_ag, r_ar, r_mg, r_mr]:
+            for r in [r_g, r_r]:
+                r[occ_col] = f"{len(eligible)}n"
                 r[f"{label} Avg Tol%"] = ""
-        return [r_ag, r_ar, r_mg, r_mr]
+        return [r_g, r_r]
 
-    # dividir assets en terciles por volatilidad
+    # filtrar por min_occurrences primero, luego dividir por beta
     df_assets = df[df["Vol Avg%"].notna() & (df["Vol Avg%"] > 0)].copy()
+    df_assets = df_assets[df_assets["EMA10C Occurrences"].apply(parse_count) >= min_occurrences]
     t25 = df_assets["Vol Avg%"].quantile(0.2)
     t75 = df_assets["Vol Avg%"].quantile(0.8)
     low_vol  = df_assets[df_assets["Vol Avg%"] <= t25]
@@ -1330,9 +1344,10 @@ def calculation_drawdowns_ema_10_20(N=8, min_days_above=20, vol_k=0.2, min_occur
     high_vol = df_assets[df_assets["Vol Avg%"] > t75]
 
     summary_rows = (
-        build_summary_rows(high_vol, "HIGH", N, neutral_threshold) +
-        build_summary_rows(mid_vol,  "MID",  N, neutral_threshold) +
-        build_summary_rows(low_vol,  "LOW",  N, neutral_threshold)
+        build_summary_rows(df_assets, "ALL", N, neutral_threshold) +
+        build_summary_rows(high_vol,  "HIGH", N, neutral_threshold) +
+        build_summary_rows(mid_vol,   "MID",  N, neutral_threshold) +
+        build_summary_rows(low_vol,   "LOW",  N, neutral_threshold)
     )
 
     df_summary = pd.DataFrame(summary_rows)
@@ -1354,6 +1369,49 @@ def calculation_ema_trends():
             data_aux = preparing_timeframes(symbol, "")
         except Exception as e:
             print(e)
+
+
+def calculation_trend_deviation(timeframes):
+    #timeframes = preparing_timeframes(symbol, "")
+    df = timeframes[0].copy()
+    df["EMA10_Absortion"] = np.where(((df["Open"]*0.998) > df["EMA_10"]) & ((df["Close"]*0.998) > df["EMA_10"]) & ((df["Low"]*1.002) < df["EMA_10"]), True, False)
+    df["EMA10_Rejection"] = np.where(((df["Open"]*1.002) < df["EMA_10"]) & ((df["Close"]*1.002) < df["EMA_10"]) & ((df["High"]*0.998) > df["EMA_10"]), True, False)
+    df["EMA20_Absortion"] = np.where(((df["Open"]*0.998) > df["EMA_20"]) & ((df["Close"]*0.998) > df["EMA_20"]) & ((df["Low"]*1.002) < df["EMA_20"]), True, False)
+    df["EMA20_Rejection"] = np.where(((df["Open"]*1.002) < df["EMA_20"]) & ((df["Close"]*1.002) < df["EMA_20"]) & ((df["High"]*0.998) > df["EMA_20"]), True, False)
+    df["MinClose1"] = pd.concat([df["Close"].shift(-1)], axis=1).min(axis=1)
+    df["MinClose2"] = pd.concat([df["Close"].shift(-1), df["Close"].shift(-2)], axis=1).min(axis=1)
+    df["MinClose3"] = pd.concat([df["Close"].shift(-1), df["Close"].shift(-2), df["Close"].shift(-3)], axis=1).min(axis=1)
+    df["MaxClose"] = pd.concat([df["Close"].shift(-1),df["Close"].shift(-2),df["Close"].shift(-3)], axis=1).max(axis=1)
+    df["Low3Days"] = (pd.concat([df["Low"].shift(-1),df["Low"].shift(-2),df["Low"].shift(-3)], axis=1).min(axis=1) / df["EMA_10"] - 1) * 100
+    df["Max3Days"] = (pd.concat([df["High"].shift(-1),df["High"].shift(-2),df["High"].shift(-3)], axis=1).max(axis=1) / df["EMA_10"] - 1) * 100
+    df["LowGrab"] = (pd.concat([df["Low"].shift(-1),df["Low"].shift(-2),df["Low"].shift(-3)], axis=1).min(axis=1) / df["Low"] - 1) * 100
+    df["DeviationEMA"] = round(((df["Low"] / df["EMA_10"])-1)*100,1)
+    return df
+
+
+def candle_pattern(timeframes):
+    try:
+        timeframe = ["daily", "weekly", "monthly"]
+        columns = ["timeframe", "type", "p05", "p25", "p50", "p75", "p95"]
+        rows = []
+        for i, df in enumerate(timeframes):
+            df = df[df["Volatility"]>=np.quantile(df["Volatility"], 0.25)].copy()
+            for wick in ["Upper_wick", "Lower_wick"]:
+                df1 = df[df[wick]>=0.6].copy()
+                df2 = df[df[wick]>=0.8].copy()
+                for df_aux in [df1, df2]:
+                    new_row = [timeframe[i]]
+                    new_row.append(wick)
+                    for n in [0.05, 0.25, 0.5, 0.75, 0.95]:
+                        new_row.append(round(np.quantile(df_aux["Return_NextDay"], n),2))
+                    rows.append(new_row)
+        df = pd.DataFrame(rows, columns=columns)
+        return df
+    except Exception as e:
+        print(e)
+
+
+    
 
 
 

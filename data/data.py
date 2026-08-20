@@ -4,7 +4,7 @@ import numpy as np
 import time
 
 def getSymbols():
-    symbols = ["^GSPC", "ASTS", "RKLB", "IREN", "NBIS", "MU", "NVDA", "GOOGL", "AAPL", "AMZN", "AMD", "MSFT", "NFLX", "META", "ORCL", "INTC", "TSLA", "NVO", "BABA", "BIDU", "JD", "PLTR", "GC=F", "SI=F", "CL=F", "BTC-USD", "ETH-USD"]
+    symbols = ["^GSPC", "ASTS", "RKLB", "IREN", "MU", "NVDA", "GOOGL", "AAPL", "AMZN", "AMD", "MSFT", "NFLX", "META", "ORCL", "INTC", "TSLA", "NVO", "BABA", "BIDU", "JD", "GC=F", "SI=F", "CL=F", "BTC-USD", "ETH-USD"]
     return symbols
 
 def get_hyperliquid_symbols():
@@ -184,9 +184,11 @@ def preparingData(data):
         df = df.copy()
         if not df.empty:
             df["Last_Close"] = df["Close"].shift(1)
+            df["Next_Close"] = df["Close"].shift(-1)
             df["type"] = np.where(df["Close"] > df["Last_Close"], "Green", "Red")
             df["rsi"] = rsi_tradingview(df['Close'])
             df["Return"] = round(((df["Close"] / df["Last_Close"])-1)*100,1)
+            df["Return_NextDay"] = round(((df["Close"] / df["Next_Close"])-1)*100,1)
             df["ReturnHigh"] = round(((df["High"] / df["Last_Close"])-1)*100,1)
             df["Volatility"] = np.abs(1-(df["High"]/df["Low"]))*100
             df['Volatility_Rolling'] = df["Volatility"].ewm(alpha=1/14, adjust=False).mean()
@@ -196,8 +198,8 @@ def preparingData(data):
             df["EMA_20"] = df["Close"].ewm(span=20, adjust=False).mean()
             df["EMA_12"] = df["Close"].ewm(span=12, adjust=False).mean()
             df["EMA_25"] = df["Close"].ewm(span=25, adjust=False).mean()
-        #df["Upper_wick"] = df["High"] - df[["Open", "Close"]].max(axis=1)
-        #df["Lower_wick"] = df[["Open", "Close"]].min(axis=1) - df["Low"]
+            #df["Upper_wick"] = df["High"] - df[["Open", "Close"]].max(axis=1)
+            #df["Lower_wick"] = df[["Open", "Close"]].min(axis=1) - df["Low"]
         new_data.append(df)
     return new_data
 
@@ -257,13 +259,17 @@ def preparing_timeframes(symbol, lower_timeframe):
 
 
 def import_csv(name):
+    import os
     try:
-        df = pd.read_csv(name + ".csv", index_col=0)
+        path = name + ".csv"
+        if not os.path.exists(path) or os.path.getsize(path) == 0:
+            return pd.DataFrame()
+        df = pd.read_csv(path, index_col=0)
+        if df.empty or len(df.columns) == 0:
+            return pd.DataFrame()
         print("Importando", name)
-        print(df)
         df.index.name = None
         return df
     except:
-        df = pd.DataFrame()
-        return df
+        return pd.DataFrame()
     
