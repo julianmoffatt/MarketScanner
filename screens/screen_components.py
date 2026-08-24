@@ -105,7 +105,7 @@ def table_fig(df, colours):
     return fig
 
 
-def table_fig_variation(df):
+def table_fig_variation(df, colours=None):
     fig = go.Figure(
         data=[
             go.Table(
@@ -117,6 +117,7 @@ def table_fig_variation(df):
                 ),
                 cells=dict(
                 values=[df[col] for col in df.columns],
+                fill_color=colours if colours is not None else "white",
                 font=dict(color="black", size=12),
                 align="center",
                 height=28   # prueba 28–40
@@ -147,42 +148,47 @@ def colour_painting_simple_table(df, current_stock_pos):
 
 def colour_painting(df, name, current_colours, current_stock_pos):
     try:
+        if df is None or df.empty:
+            return []
         colours = []
         if name == "flips":
+            # bloques de columnas: "Asset", luego por cada timeframe superior: "nX", "X%", "0 xxx_F", "1 xxx_F", ...
+            palette = ["lightgreen", "lightblue"]
+            block_idx = -1
             for i, col in enumerate(df.columns):
                 if i == 0:
                     colours.append(["white"] * len(df))
-                elif i <= 4:
-                    colours.append(["lightgreen"] * len(df))
-                elif i <= 10:
-                    colours.append(["lightblue"] * len(df))
-                elif i == 11 or i == 19: 
+                elif col.startswith("n") and len(col) == 2 and col[1].isupper():
+                    block_idx += 1 # arranca un nuevo bloque de timeframe (nW, nM, nQ, nY...)
+                    colours.append(["lightgray"] * len(df))
+                elif col.endswith("%"):
                     colours.append(["lightgray"] * len(df))
                 else:
-                    colours.append(["lightgreen"] * len(df))
+                    colours.append([palette[block_idx % len(palette)]] * len(df))
 
         if current_stock_pos != -1:
             for x in range (0, len(colours)): # i highlight the current stock
-                colours[x][current_stock_pos] = "#a6a6a6"        
-        print("i get here")
-        if not current_colours.empty: # i override the current flips of opens situation in weekly and monthly
-            i = 0
-            for row in current_colours.itertuples(index=False):
-                row_columns = list(row)
-                posWeekly = row_columns[1] + 2
-                posMonthly = row_columns[3] + 6
-                posQuarterly = row_columns[5] + 13
-                if i != current_stock_pos:
-                    colours[posWeekly][i] = "yellow"
-                    colours[posMonthly][i] = "yellow"
-                    colours[posQuarterly][i] = "yellow"
-                else:
-                    colours[posWeekly][i] = "lightyellow"
-                    colours[posMonthly][i] = "lightyellow"
-                    colours[posQuarterly][i] = "lightyellow"
+                colours[x][current_stock_pos] = "#a6a6a6"
 
-                i = i + 1
-        print("i return colours")
+        if name == "flips" and current_colours is not None and not current_colours.empty:
+            # i override the current flips of opens situation, matcheando por simbolo y por columna "j xxx_F"
+            symbol_col = df.columns[0]
+            symbol_to_row = {sym: idx for idx, sym in enumerate(df[symbol_col])}
+            for _, row in current_colours.iterrows():
+                symbol = row["symbol"]
+                if symbol not in symbol_to_row:
+                    continue
+                row_idx = symbol_to_row[symbol]
+                highlight = "lightyellow" if row_idx == current_stock_pos else "yellow"
+                for flip_col in current_colours.columns:
+                    if not flip_col.endswith("Flip") or flip_col.endswith("LastFlip"):
+                        continue
+                    tf = flip_col[:-len("Flip")]
+                    target_col = f"{int(row[flip_col])} {tf[0:3]}_F"
+                    if target_col not in df.columns:
+                        continue
+                    col_pos = df.columns.get_loc(target_col)
+                    colours[col_pos][row_idx] = highlight
         return colours
     except Exception as e:
         print(e)

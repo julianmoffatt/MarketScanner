@@ -2,6 +2,8 @@ import yfinance as yf
 import pandas as pd
 import numpy as np
 import time
+from analytics.statistics_calculations import *
+from analytics.flips_calculation import *
 
 def getSymbols():
     symbols = ["^GSPC", "ASTS", "RKLB", "IREN", "MU", "NVDA", "GOOGL", "AAPL", "AMZN", "AMD", "MSFT", "NFLX", "META", "ORCL", "INTC", "TSLA", "NVO", "BABA", "BIDU", "JD", "GC=F", "SI=F", "CL=F", "BTC-USD", "ETH-USD"]
@@ -215,15 +217,6 @@ def create_hightimeframes(timeframes, lower_timeframe):
         timeframes.append(df_years)
         return timeframes
 
-    
-def merge_partialweek(df, df_partialweek):
-    row_data = {'Open':   df_partialweek['Open'].iloc[0],'High':   df_partialweek['High'].max(),'Low':    df_partialweek['Low'].min(),'Close':  df_partialweek['Close'].iloc[-1],'Volume': df_partialweek['Volume'].sum()}
-    row_data["Volatility"] = abs(1-(df["High"]/df["Low"]))
-    row_data['Volatility_Rolling'] = abs(1-(df["High"]/df["Low"]))
-    weekly_candle = pd.DataFrame([row_data], index=[df_partialweek.index[0]])
-    df_merged = pd.concat([weekly_candle, df], axis=0).sort_index()
-    return df_merged
-
 
 def last_year(data):
     # 1. Aseguramos que el índice sea Datetime antes de operar
@@ -258,18 +251,4 @@ def preparing_timeframes(symbol, lower_timeframe):
     return data_candles
 
 
-def import_csv(name):
-    import os
-    try:
-        path = name + ".csv"
-        if not os.path.exists(path) or os.path.getsize(path) == 0:
-            return pd.DataFrame()
-        df = pd.read_csv(path, index_col=0)
-        if df.empty or len(df.columns) == 0:
-            return pd.DataFrame()
-        print("Importando", name)
-        df.index.name = None
-        return df
-    except:
-        return pd.DataFrame()
     

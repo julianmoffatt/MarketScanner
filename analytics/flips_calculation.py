@@ -1,4 +1,5 @@
 import os
+from concurrent.futures import ProcessPoolExecutor
 from data.assets import Assets 
 from screens.screens_web import *
 import dash
@@ -6,6 +7,8 @@ from dash import dcc, html
 from dash.dependencies import Input, Output
 from functools import partial # para pasar mas de un parametro a la Pool de procesos
 from itertools import product
+import numpy as np
+import pandas as pd
 
 def flips_calculation_all_symbols(x_timeframe_name):
     try:
@@ -128,3 +131,63 @@ def flips_dynamics_calculation(symbol, df, open, timeframe, df_vol, vol_p20, vol
         return flips, lastFlip, round(threshold, 2)
     except Exception as e:
         print(e) 
+
+
+def current_flips_calculation_all_symbols(x_timeframe_name):
+    try:
+        assets = Assets()
+        timeframe_name = ["daily", "weekly", "monthly", "quarterly", "yearly"]
+        x_timeframe = timeframe_name.index(x_timeframe_name)
+        data_rows = []
+
+        symbols = assets.getAssets("mysymbols")
+        combos = list(product(symbols, [x_timeframe])) # Todas las combinaciones (símbolo, timeframe)
+        
+        with ProcessPoolExecutor(max_workers=10) as executor:
+            results = list(executor.map(current_flips_calculation_aux, combos))
+
+        data_rows = [r for r in results if r is not False]  
+        df = pd.DataFrame(data_rows)
+        name_csv = "excels/currentflips_" + x_timeframe_name + ".csv"
+        df.to_csv(name_csv)    
+        print("i return the csv of current flips")
+        return df 
+    except Exception as e:
+        print(e)
+
+
+def current_flips_calculation_aux(args):
+    symbol, x_timeframe = args
+    return current_flips_calculation(symbol, x_timeframe)   
+
+
+def current_flips_calculation(symbol, x_timeframe):
+    timeframe_name = ["daily", "weekly", "monthly", "quarterly", "yearly"]
+    print("i process", symbol)
+    assets = Assets()
+    timeframes = assets.loadTimeframes(symbol)
+    LT_full = timeframes[x_timeframe]
+    LT_vol = np.log(LT_full["Close"] / LT_full["Close"].shift(1)).rolling(20).std() * 100
+    vol_p20 = LT_vol.quantile(0.20)
+    vol_p80 = LT_vol.quantile(0.80)
+    symbol_flips = []
+    t = 0
+
+    for i in range (x_timeframe + 1, len(timeframes)):
+        lowerTimeframeCandles = timeframes[x_timeframe][timeframes[x_timeframe].index >= timeframes[i].index[-1]]
+        open_price = timeframes[i].iloc[-1]["Open"]
+        df_vol = LT_vol.reindex(lowerTimeframeCandles.index)
+        flips, lastFlip, threshold = flips_dynamics_calculation(symbol, lowerTimeframeCandles, open_price, timeframe_name[i], df_vol, vol_p20, vol_p80, assets.getWeightVol(x_timeframe, t))
+
+        max_flips = t + x_timeframe + 2 # coincide con el ultimo indice "j {tf}_F" que genera flips_calculation_all_symbols para este bloque
+        if flips > max_flips:
+            flips = max_flips
+        symbol_flips.append([flips, lastFlip])
+        t += 1
+
+    higher_timeframes = timeframe_name[x_timeframe + 1:] # symbol_flips solo trae datos de estos, no de todos los timeframe_name
+    row = {"symbol": assets.name_sustitution(symbol)}
+    for i, tf in enumerate(higher_timeframes):
+        row[f"{tf}Flip"] = symbol_flips[i][0]
+        row[f"{tf}LastFlip"] = symbol_flips[i][1]
+    return row

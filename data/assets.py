@@ -47,6 +47,9 @@ class Assets:
         daily.index = pd.to_datetime(daily.index, utc=True)
         daily.index = daily.index.normalize()
         daily = daily.sort_index()
+        last_date = daily.index.max()
+        cutoff_date = last_date - pd.DateOffset(years=40) #me quedo los ultimos 40 años
+        daily = daily.loc[daily.index >= cutoff_date].copy()
         weekly = daily.resample('W-MON', label='left', closed='left').agg({'Open': 'first','High': 'max','Low': 'min','Close': 'last','Volume': 'sum'})
         monthly = daily.resample('MS', label='left', closed='left').agg({'Open': 'first','High': 'max','Low': 'min','Close': 'last','Volume': 'sum'})
         quarterly = monthly.resample('QS', label='left', closed='left').agg({'Open': 'first','High': 'max','Low': 'min','Close': 'last','Volume': 'sum'})
@@ -62,9 +65,11 @@ class Assets:
             df = df.copy()
             if not df.empty:
                 df["Last_Close"] = df["Close"].shift(1)
+                df["Next_Close"] = df["Close"].shift(-1)
                 df["type"] = np.where(df["Close"] > df["Last_Close"], "Green", "Red")
                 df["rsi"] = cls.rsi_tradingview(df['Close'])
                 df["Return"] = round(((df["Close"] / df["Last_Close"])-1)*100,1)
+                df["Return_NextDay"] = round(((df["Close"] / df["Next_Close"])-1)*100,1)
                 df["Volatility"] = np.abs(1-(df["High"]/df["Low"]))*100
                 df["Upper_wick"] = df["High"] - df[["Open", "Close"]].max(axis=1)
                 df["Lower_wick"] = df[["Open", "Close"]].min(axis=1) - df["Low"]
@@ -98,17 +103,6 @@ class Assets:
         rs = avg_gain / avg_loss
         rsi = 100 - (100 / (1 + rs))
         return rsi
-
-    @classmethod
-    def import_csv(clse, name):
-        try:
-            df = pd.read_csv(name + ".csv", index_col=0)
-            df.index.name = None
-            print("Importando", name)
-            return df
-        except:
-            df = pd.DataFrame()
-            return df
 
     @classmethod
     def getCurrentStockPos(cls, assets_name, asset):

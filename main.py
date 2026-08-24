@@ -1,7 +1,7 @@
 #pressure/absortion code, weekly and monthly charts
 import os
+from data.database import *
 from data.assets import Assets 
-from analytics.statistics_calculations import *
 from screens.screens_web import *
 from data.data import *
 import dash
@@ -10,6 +10,7 @@ from dash.dependencies import Input, Output
 from functools import partial # para pasar mas de un parametro a la Pool de procesos
 from itertools import product
 from analytics.flips_calculation import *
+from analytics.statistics_calculations import *
 
 def parameters_calculation_unpacked(args):
     symbol, param = args
@@ -132,27 +133,7 @@ def cycle_dynamics_parameters(symbol, data, lower_timeframe, TIMEFRAME_WEIGHT, i
 # STUDY OF LIQUIDITY GRABS
 # PARA MEDIR LOS MOVIMIENTOS TENGO QUE UTILIZAR LA VOLATILIDAD DE LOS ULTIMOS AÑOS O ALGO Y HACERLO PROPORCIONAL
 # study of trailing stops optimization
-# multiple consecutive wicks detection for reversals !!!!
-
-def load_data(name):
-    print("Empieza importar", name)
-    df = import_csv(name)
-    print("Acaba importar", name)
-    if not df.empty:
-        return df
-    else:    
-        if name[0:13] == "excels/flips_":
-            return flips_calculation_all_symbols(name[13:])
-        elif name[0:19] == "excels/currentflips":
-            return current_cycle_flips_all_symbols(name[19:])
-        elif name == "excels/gapsallsymbols":
-            return calculation_closing_gaps_all_symbols()
-        elif name == "excels/peaksoverview":
-            return calculation_cycle_peak_expansion_all_symbols()
-        elif name[0:12] == "excels/gaps/":
-            return calculation_closing_gaps(name[12:])
-        elif name == "excels/drawdowns_ema_10_20":
-            return calculation_drawdowns_ema_10_20()   
+# multiple consecutive wicks detection for reversals !!!!  
 
 tabs_styles = {
     'height': '60px',
@@ -358,14 +339,34 @@ def bulk_clear_cache(n_clicks):
      Input('btn-clear-all', 'n_clicks')]
 )
 
-def render_content(stock, tab, n_clicks):
-    ruta = "excels/dataframe_symbol/"
-    if not os.listdir(ruta):
-        print("DATABASE")
-        getDataframesDatabase()
+
+def load(name):
+    database = Database()
+    routes = {"flips_daily": flips_calculation_all_symbols("daily"), "flips_weekly": flips_calculation_all_symbols("weekly"),
+              "flips_monthly": flips_calculation_all_symbols("monthly"),  "flips_quarterly": flips_calculation_all_symbols("quarterly"),
+              "currentflips_daily": current_flips_calculation_all_symbols("daily"), "currentflips_monthly": current_flips_calculation_all_symbols("monthly"),
+              "currentflips_quarterly": current_flips_calculation_all_symbols("quarterly"), "peaksoverview": calculation_cycle_peak_expansion_all_symbols(),
+              "gaps":calculation_closing_gaps(name[12:]), "gapsoverview": calculation_closing_gaps_all_symbols(),
+              "drawdowns_ema_10_20": calculation_drawdowns_ema_10_20()}
+    df = database.load_data(name)
+    if not df:
+        if name[0:4] == "gaps":
+            return calculation_closing_gaps(name[6:])
+        else: 
+            return routes[name]
+
+
+
+def render_content(asset, tab, n_clicks):
+    database = Database()
+    assets = Assets()
+    #ruta = "excels/dataframe_symbol/"
+    #if not os.listdir(ruta):
+    #    print("DATABASE")
+    #    getDataframesDatabase()
     
-    data = preparing_timeframes(stock, "")
-    current_stock = getCurrentStockPos(stock)
+    data = assets.loadStatistics(assets.loadTimeframes(asset))
+    current_stock = getCurrentStockPos(asset)
     #pe_ntm = yf.Ticker(stock).info.get("forwardPE")
     #print(pe_ntm)
 
@@ -380,28 +381,36 @@ def render_content(stock, tab, n_clicks):
         fig = screen_monthly_chart(data)
         return fig
     elif tab == 'tab-4':
-        df_tab_4 = calculation_ema_extension(data)
-        return screen_ema_extension_plotly(df_tab_4, stock, -1)
+        return screen_ema_extension_plotly(data, asset, -1)
     elif tab == 'tab-5':
-        df_tab_5 = calculation_ema_extension(data)
-        return screen_ema_extension_plotly(df_tab_5, stock, 1)
+        return screen_ema_extension_plotly(data, asset, 1)
     elif tab == 'tab-6':
         df_tab_6 = calculation_average_deviation(data)
-        return screen_deviations(df_tab_6, stock)
+        return screen_deviations(df_tab_6, asset)
     elif tab == 'tab-7':
         probabilities, colours  = calculation_StrikesProbabilities(data) 
-        return screen_strikes_plotly(probabilities, colours, stock)
+        return screen_strikes_plotly(probabilities, colours, asset)
     elif tab == 'tab-8':
         df_tab_8 = calculation_Rsi(data) 
-        return screen_rsi_plotly(df_tab_8, stock)
+        return screen_rsi_plotly(df_tab_8, asset)
     elif tab == 'tab-9':
-        df_tab_9 = load_data("excels/flips_daily")
-        #current_flips = load_data("excels/currentflipsdaily")
-        #colours = colour_painting(df_tab_9, "flips", current_flips, current_stock)
-        return table_fig_variation(df_tab_9)    
+        df_tab_9 = load("flips_daily")
+        current_flips = load("currentflips_daily")
+        colours = colour_painting(df_tab_9, "flips", current_flips, current_stock)
+        return table_fig(df_tab_9, colours)
+    elif tab == 'tab-209':
+        df_209 = load("flips_monthly")
+        current_flips = load("currentflips_monthly")
+        colours = colour_painting(df_209, "flips", current_flips, current_stock)
+        return table_fig(df_209, colours)
+    elif tab == 'tab-210':
+        df_210 = load("flips_quarterly")
+        current_flips = load("currentflips_quarterly")
+        colours = colour_painting(df_210, "flips", current_flips, current_stock)
+        return table_fig(df_210, colours)    
     elif tab == 'tab-10':
-        df_tab_10 = load_data("excels/flipsweekly")
-        current_flips = load_data("excels/currentflipsweekly")
+        df_tab_10 = database.load_data("excels/flips_weekly")
+        current_flips = database.load_data("excels/currentflips_weekly")
         colours = colour_painting(df_tab_10, "flips", current_flips, current_stock)
         return table_fig(df_tab_10, colours)  
     elif tab == 'tab-12':
@@ -409,73 +418,73 @@ def render_content(stock, tab, n_clicks):
         return screen_screener_ema_extensions(longs, shorts)
     elif tab == 'tab-13':
         df_tab_13 = calculation_retest_bands(data, "HT")
-        return screen_ema_retests(df_tab_13, stock, 0)
+        return screen_ema_retests(df_tab_13, asset, 0)
     elif tab == 'tab-14':
-        names = ["excels/LastFlipOpen/daily_flip_on_" + x + "_" + stock for x in ["weekly", "monthly", "quarterly"]]
-        data = [load_data(names[x]) for x in range(0,3)] 
-        names = ["excels/LastFlipOpen/weekly_flip_on_" + x + "_" + stock for x in ["monthly", "quarterly", "yearly"]]
-        data = data + [load_data(names[x]) for x in range(0,3)] 
-        return screen_last_flip_open(data, stock)
+        names = ["excels/LastFlipOpen/daily_flip_on_" + x + "_" + asset for x in ["weekly", "monthly", "quarterly"]]
+        data = [database.load_data(names[x]) for x in range(0,3)] 
+        names = ["excels/LastFlipOpen/weekly_flip_on_" + x + "_" + asset for x in ["monthly", "quarterly", "yearly"]]
+        data = data + [database.load_data(names[x]) for x in range(0,3)] 
+        return screen_last_flip_open(data, asset)
     elif tab == 'tab-15':
-        df_tab_15 = load_data("excels/peaksoverview")
+        df_tab_15 = load("peaksoverview")
         colours_tab_15 = colour_painting_detailed_flips(df_tab_15, current_stock)
         return table_fig(df_tab_15, colours_tab_15)
     elif tab == 'tab-16':
-        df_tab_16 = load_data("excels/gapsallsymbols")
+        df_tab_16 = load("gapsoverview")
         colours_tab_16 = colour_painting_simple_table(df_tab_16, current_stock)
         return table_fig(df_tab_16, colours_tab_16)
     elif tab == 'tab-17':
-        df_tab_17 = load_data("excels/gaps/"+stock)
-        fig_tab_17 = screen_gaps_stock(df_tab_17, stock)
-        return title_stock(fig_tab_17, stock)
+        df_tab_17 = database.load_data("excels/gaps/"+asset)
+        fig_tab_17 = screen_gaps_stock(df_tab_17, asset)
+        return title_stock(fig_tab_17, asset)
     elif tab == 'tab-18':
-        df_tab_18 = load_data("excels/flips_detail_daily")
+        df_tab_18 = database.load_data("excels/flips_detail_daily")
         colours_tab_18 = colour_painting_detailed_flips(df_tab_18, current_stock)
         return table_fig(df_tab_18, colours_tab_18)
     elif tab == 'tab-19':
-        df_tab_19 = load_data("excels/flips_detail_weekly")
+        df_tab_19 = database.load_data("excels/flips_detail_weekly")
         colours_tab_19 = colour_painting_detailed_flips(df_tab_19, current_stock)
         return table_fig(df_tab_19, colours_tab_19)
     elif tab == 'tab-20':
-        name_tab_20_1 = "excels/analysis/monthly_" + stock
-        df_tab_20_1= load_data(name_tab_20_1)
-        name_tab_20_2 = "excels/analysis/quarterly_" + stock
-        df_tab_20_2 = load_data(name_tab_20_2)
-        fig_tab_20 = screen_cycle_correlations(df_tab_20_1[1:], df_tab_20_2[1:], stock)
+        name_tab_20_1 = "excels/analysis/monthly_" + asset
+        df_tab_20_1= database.load_data(name_tab_20_1)
+        name_tab_20_2 = "excels/analysis/quarterly_" + asset
+        df_tab_20_2 = database.load_data(name_tab_20_2)
+        fig_tab_20 = screen_cycle_correlations(df_tab_20_1[1:], df_tab_20_2[1:], asset)
         return fig_tab_20
     elif tab == 'tab-21':
-        name_tab_21_1 = "excels/LastFlipOpen/daily_flip_on_monthly_" + stock
-        df_tab_21_1= load_data(name_tab_21_1)
-        name_tab_21_2 = "excels/peaks/" + stock + "_monthly"
-        df_tab_21_2 = load_data(name_tab_21_2)
-        fig_tab_21 = screen_lastflip_x_peak(df_tab_21_1, df_tab_21_2, stock)
+        name_tab_21_1 = "excels/LastFlipOpen/daily_flip_on_monthly_" + asset
+        df_tab_21_1= database.load_data(name_tab_21_1)
+        name_tab_21_2 = "excels/peaks/" + asset + "_monthly"
+        df_tab_21_2 = database.load_data(name_tab_21_2)
+        fig_tab_21 = screen_lastflip_x_peak(df_tab_21_1, df_tab_21_2, asset)
         return fig_tab_21
     elif tab == 'tab-23':
-        data_tab_23 = getDataStock_LT(stock, True)
-        df_tab_23 = calculation_ema_extension(data_tab_23)
-        return screen_ema_extension_plotly(df_tab_23, stock, 10)
+        data_tab_23 = getDataStock_LT(asset, True)
+        df_tab_23 = assets.loadStatistics(data_tab_23)
+        return screen_ema_extension_plotly(df_tab_23, asset, 10)
     elif tab == 'tab-24':
-        data_tab_24 = getDataStock_LT(stock, True)
+        data_tab_24 = getDataStock_LT(asset, True)
         df_tab_24 = calculation_retest_bands(data_tab_24, "LT")
-        return screen_ema_retests(df_tab_24, stock, 1)
+        return screen_ema_retests(df_tab_24, asset, 1)
     elif tab == 'tab-25':
         data_tab_25 = calculation_cashsession_dynamics()
         print("Llega a volver")
         return table_fig_variation(data_tab_25)
     elif tab == 'tab-26':
-        data_tab_26 = screen_volatility(data, stock)
+        data_tab_26 = screen_volatility(data, asset)
         return data_tab_26
     elif tab == 'tab-27':
-        data_tab_27 = screen_returns(data, stock)
+        data_tab_27 = screen_returns(data, asset)
         return data_tab_27
     elif tab == 'tab-28':
-        df_tab_28 = load_data("excels/flipsmonthly")
-        df_tab_28 = load_data("excels/flips_detail_monthly")
+        df_tab_28 = database.load_data("flipsmonthly")
+        df_tab_28 = database.load_data("flips_detail_monthly")
         colours_tab_28 = colour_painting_detailed_flips(df_tab_28, current_stock)
         return table_fig(df_tab_28, colours_tab_28)
     elif tab == 'tab-29':
         data_tab_29 = calculation_open_momentum(data)
-        return screen_open_momentum(data_tab_29, stock)
+        return screen_open_momentum(data_tab_29, asset)
     elif tab == 'tab-30':
         data_tab_30 = golden_cross_screener("daily")
         #return table_fig_variation(data_tab_30)
@@ -493,24 +502,18 @@ def render_content(stock, tab, n_clicks):
         colours_tab_100 = colour_painting_quarter_patterns(df_100, current_stock)
         return table_fig(df_100, colours_tab_100)
     elif tab == 'tab-101':
-        df_101 = load_data("excels/drawdowns_ema_10_20")
+        df_101 = load("drawdowns_ema_10_20")
         colours_tab_101 = colour_painting_return_color(df_101, current_stock)
         return table_fig(df_101, colours_tab_101)
     elif tab == 'tab-102':
         df_102 = calculation_trend_deviation(data)
-        return screen_trend_deviation(df_102, stock)
+        return screen_trend_deviation(df_102, asset)
     elif tab == 'tab-103':
         df_103 = parameters_calculation_all_symbols()
         return table_fig_variation(df_103)
     elif tab == 'tab-104':
         df_104 =  candle_pattern(data)
         return table_fig_variation(df_104)
-    elif tab == 'tab-209':
-        df_209 = load_data("excels/flips_monthly")
-        return table_fig_variation(df_209)
-    elif tab == 'tab-210':
-        df_210 = load_data("excels/flips_quarterly")
-        return table_fig_variation(df_210)
     else:
         pass
 
