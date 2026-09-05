@@ -9,6 +9,15 @@ from functools import partial # para pasar mas de un parametro a la Pool de proc
 from itertools import product
 import numpy as np
 import pandas as pd
+from data.database import *
+
+def flips_calculation_aux(args):
+    symbol, x_timeframe = args
+    return flips_calculation(symbol, x_timeframe)   
+
+def current_flips_calculation_aux(args):
+    symbol, x_timeframe = args
+    return current_flips_calculation(symbol, x_timeframe)  
 
 def flips_calculation_all_symbols(x_timeframe_name):
     try:
@@ -29,22 +38,19 @@ def flips_calculation_all_symbols(x_timeframe_name):
         with ProcessPoolExecutor(max_workers=10) as executor:
             results = list(executor.map(flips_calculation_aux, combos))
 
-        data_rows = [r for r in results if r is not False]
-        df = pd.DataFrame(data_rows, columns = columns)
-        name = "excels/flips_" + timeframe_name[x_timeframe] + ".csv"
-        df.to_csv(name)    
+        data_rows = []
+        for r in results:
+            if r is not False:
+                data_rows.extend(r)   # r es una lista de 3 filas -> las añade una por una
+        df = pd.DataFrame(data_rows, columns=columns)
         return df    
     except Exception as e:
         print(e)
 
 
-def flips_calculation_aux(args):
-    symbol, x_timeframe = args
-    return flips_calculation(symbol, x_timeframe)    
-
-
 def flips_calculation(symbol, x_timeframe):
     assets = Assets()
+    rows = []
     timeframes = assets.loadStatistics(assets.loadTimeframes(symbol))
     if len(timeframes[x_timeframe]) <= 20:
         return False
@@ -52,17 +58,23 @@ def flips_calculation(symbol, x_timeframe):
     if any(df_item.empty for df_item in dfs):
         return False
     config = [[0, 1, 2], [0, 1, 2, 3], [0, 1, 2, 3, 4], [0, 1, 2, 3, 4, 5]] # 4, True para mon y quar
-    new_row = [assets.name_sustitution(symbol)]
-    for i, df_item in enumerate(dfs):
-        flips_to_show = config[i+x_timeframe]
-        counts = df_item["Flips"].value_counts().reindex(range(20), fill_value=0)
-        total = counts.sum()
-        new_row.append(round(total, 0))
-        new_row.append(str(round(np.quantile(df_item["Threshold"], 0), 1))+" | "+str(round(np.quantile(df_item["Threshold"], 1), 1)))
-        for f in flips_to_show:
-            percentage = round((counts[f] / total) * 100, 1) if total > 0 else 0
-            new_row.append(percentage)
-    return new_row
+    df_green, df_red = dataframe_candle_split(dfs)
+    names = ["_Overall", "_Green", "_Red"]
+    x = 0
+    for dfs in [dfs, df_green, df_red]:
+        new_row = [assets.name_sustitution(symbol)+names[x]]
+        for i, df_item in enumerate(dfs):
+            flips_to_show = config[i+x_timeframe]
+            counts = df_item["Flips"].value_counts().reindex(range(20), fill_value=0)
+            total = counts.sum()
+            new_row.append(round(total, 0))
+            new_row.append(str(round(np.quantile(df_item["Threshold"], 0), 1))+" | "+str(round(np.quantile(df_item["Threshold"], 1), 1)))
+            for f in flips_to_show:
+                percentage = round((counts[f] / total) * 100, 1) if total > 0 else 0
+                new_row.append(percentage)
+        rows.append(new_row)
+        x+=1
+    return rows
 
 
 def flips_dynamics(symbol, timeframes, x_timeframe):
@@ -70,11 +82,8 @@ def flips_dynamics(symbol, timeframes, x_timeframe):
     timeframe_name = ["daily", "weekly", "monthly", "quarterly", "yearly"]
     parameters = [pd.Timedelta(days=7), pd.offsets.MonthBegin(1), pd.offsets.MonthBegin(3), pd.offsets.MonthBegin(12)]
 
-    # volatilidad histórica del LT completo — log-returns rolling 20, percentiles para clamps
     LT_full = timeframes[x_timeframe].copy()
-    LT_vol_full = np.log(LT_full["Close"] / LT_full["Close"].shift(1)).rolling(20).std() * 100
-    vol_p20 = LT_vol_full.quantile(0.20)
-    vol_p80 = LT_vol_full.quantile(0.80)
+    LT_vol_full, vol_p20, vol_p80 = Assets.calculate_volatility(LT_full["Close"])
 
     timeframes_cycles = []
     end = []
@@ -146,19 +155,14 @@ def current_flips_calculation_all_symbols(x_timeframe_name):
         with ProcessPoolExecutor(max_workers=10) as executor:
             results = list(executor.map(current_flips_calculation_aux, combos))
 
-        data_rows = [r for r in results if r is not False]  
+        data_rows = []
+        for r in results:
+            if r is not False:
+                data_rows.extend(r)
         df = pd.DataFrame(data_rows)
-        name_csv = "excels/currentflips_" + x_timeframe_name + ".csv"
-        df.to_csv(name_csv)    
-        print("i return the csv of current flips")
-        return df 
+        return df
     except Exception as e:
         print(e)
-
-
-def current_flips_calculation_aux(args):
-    symbol, x_timeframe = args
-    return current_flips_calculation(symbol, x_timeframe)   
 
 
 def current_flips_calculation(symbol, x_timeframe):
@@ -167,9 +171,7 @@ def current_flips_calculation(symbol, x_timeframe):
     assets = Assets()
     timeframes = assets.loadTimeframes(symbol)
     LT_full = timeframes[x_timeframe]
-    LT_vol = np.log(LT_full["Close"] / LT_full["Close"].shift(1)).rolling(20).std() * 100
-    vol_p20 = LT_vol.quantile(0.20)
-    vol_p80 = LT_vol.quantile(0.80)
+    LT_vol, vol_p20, vol_p80 = Assets.calculate_volatility(LT_full["Close"])
     symbol_flips = []
     t = 0
 
@@ -186,8 +188,19 @@ def current_flips_calculation(symbol, x_timeframe):
         t += 1
 
     higher_timeframes = timeframe_name[x_timeframe + 1:] # symbol_flips solo trae datos de estos, no de todos los timeframe_name
-    row = {"symbol": assets.name_sustitution(symbol)}
+    row = {}
     for i, tf in enumerate(higher_timeframes):
         row[f"{tf}Flip"] = symbol_flips[i][0]
         row[f"{tf}LastFlip"] = symbol_flips[i][1]
-    return row
+
+    base_symbol = assets.name_sustitution(symbol)
+    names = ["_Overall", "_Green", "_Red"]
+    return [dict(row, symbol=base_symbol + suffix) for suffix in names]
+
+
+def dataframe_candle_split(data):
+    data_green, data_red  = [], []
+    for df in data:
+        data_green.append(df[df["Direction"] == "Green"].copy())
+        data_red.append(df[df["Direction"] == "Red"].copy())
+    return data_green, data_red

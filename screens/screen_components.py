@@ -17,7 +17,7 @@ def candlestick_chart(df):
         )
     )
 
-    fig.update_layout(height=800, plot_bgcolor='white', paper_bgcolor='white', xaxis_rangeslider_visible=False, xaxis=dict(showgrid=False),
+    fig.update_layout(autosize=True, plot_bgcolor='white', paper_bgcolor='white', xaxis_rangeslider_visible=False, xaxis=dict(showgrid=False),
         margin=dict(l=20, r=20, t=30, b=20),
         yaxis=dict(showgrid=True, gridcolor='lightgray')
     )

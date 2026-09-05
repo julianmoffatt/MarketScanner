@@ -1,5 +1,5 @@
 #pressure/absortion code, weekly and monthly charts
-import os
+import glob, os, time
 from data.database import *
 from data.assets import Assets 
 from screens.screens_web import *
@@ -9,8 +9,20 @@ from dash import dcc, html
 from dash.dependencies import Input, Output
 from functools import partial # para pasar mas de un parametro a la Pool de procesos
 from itertools import product
-from analytics.flips_calculation import *
 from analytics.statistics_calculations import *
+from analytics.deviations import *
+from analytics.rsi import *
+from analytics.screener_ema_extensions import *
+from analytics.screener_retest_bands import *
+from analytics.retest_bands import *
+from analytics.strikes_candles import *
+from analytics.quarter_patterns import *
+from analytics.candle_patterns import *
+from analytics.cash_session_direction import *
+from analytics.drawdowns import *
+from analytics.peaks import *
+from analytics.gaps import *
+from strategies.mean_reversion_distance import *
 
 def parameters_calculation_unpacked(args):
     symbol, param = args
@@ -18,12 +30,13 @@ def parameters_calculation_unpacked(args):
 
 def parameters_calculation_all_symbols():
     try:
+        assets = Assets()
         timeframes_name = ["weekly", "monthly", "quarterly"]
         columns = ["Asset", "pWeekly", "p5", "p50", "p95"]
         columns.append("n"+str(timeframes_name[0][0]).upper())
         for i in range (0,3):
             columns.append(str(i) + " " + timeframes_name[0] + "_F")
-        symbols = get_sp500_symbols()
+        symbols = assets.getAssets("sp500")
         symbols = symbols[400:401].copy()
         parameters = [0.05*x for x in range(3, 20)]
         combos = list(product(symbols, parameters)) # Todas las combinaciones (símbolo, parámetro) — 500 × 14 = 7000 tareas
@@ -42,7 +55,10 @@ def parameters_calculation_all_symbols():
         df = df.drop(index=idx_max)
 
         df_all = pd.DataFrame()
-        df1 = import_csv("parametros_weekly")
+        try:
+            df1 = pd.read_csv("parametros_weekly.csv", index_col=0)
+        except FileNotFoundError:
+            df1 = pd.DataFrame()
         if df1.empty:
             df.to_csv("parametros_weekly.csv")
             df_all = df.copy()
@@ -53,7 +69,6 @@ def parameters_calculation_all_symbols():
 
         result = df_all.loc[df_all.groupby("Asset")["total_diff_0f"].idxmin()]
         print(result.groupby("pWeekly").size())
-        print(len(get_nasdaq_non_sp500()))
         return df_all
     except Exception as e:
         print(e)
@@ -62,7 +77,7 @@ def parameters_calculation_all_symbols():
 def parameters_calculation(symbol, pTimeframe):
     assets = Assets()
     TIMEFRAME_WEIGHT = round(pTimeframe, 2)
-    data_candles = preparing_timeframes(symbol, "daily")
+    data_candles = assets.loadStatistics(assets.loadTimeframes(symbol))
     if len(data_candles[0]) >= 2000:
         dfs = cycle_dynamics_parameters(symbol, data_candles, "daily", TIMEFRAME_WEIGHT, 1)
         config = [[0, 1, 2]] # 4, True para mon y quar
@@ -96,10 +111,7 @@ def cycle_dynamics_parameters(symbol, data, lower_timeframe, TIMEFRAME_WEIGHT, i
     
     LT = data[t][14:].copy()
 
-    # volatilidad histórica del LT completo — log-returns rolling 20, percentiles para clamps
-    LT_vol = np.log(LT["Close"] / LT["Close"].shift(1)).rolling(20).std() * 100
-    vol_p10 = LT_vol.quantile(0.10)
-    vol_p90 = LT_vol.quantile(0.90)
+    LT_vol, vol_p20, vol_p80 = Assets.calculate_volatility(LT["Close"])
 
     timeframes_cycles = []
     end = []
@@ -117,12 +129,12 @@ def cycle_dynamics_parameters(symbol, data, lower_timeframe, TIMEFRAME_WEIGHT, i
             continue
         df_vol = LT_vol.reindex(df.index)
         print(timeframe[i-1-t], "| OPEN:", HT.iloc[x]["Open"], "| CLOSE:", HT.iloc[x]["Close"], "| DATE:", HT.index[x])
-        params = cycle_dynamics_calculation(symbol, df, HT.iloc[x]["Open"], timeframe[p], df_vol, vol_p10, vol_p90, {timeframe[0]:TIMEFRAME_WEIGHT})
+        params = cycle_dynamics_calculation(symbol, df, HT.iloc[x]["Open"], timeframe[p], df_vol, vol_p20, vol_p80, {timeframe[0]:TIMEFRAME_WEIGHT})
         cycle.loc[len(cycle)] = [HT.index[x], round(HT.iloc[x]["Open"], 1), params[0], params[1], params[2], HT.iloc[x]["type"], HT.iloc[x]["Return"]]
     df = LT[(LT.index >= HT.index[-1])]
     if not df.empty:
         df_vol = LT_vol.reindex(df.index)
-        params = cycle_dynamics_calculation(symbol, df, HT.iloc[-1]["Open"], timeframe[p], df_vol, vol_p10, vol_p90, {timeframe[0]:TIMEFRAME_WEIGHT})
+        params = cycle_dynamics_calculation(symbol, df, HT.iloc[-1]["Open"], timeframe[p], df_vol, vol_p20, vol_p80, {timeframe[0]:TIMEFRAME_WEIGHT})
         cycle.loc[len(cycle)] = [HT.index[-1], round(HT.iloc[-1]["Open"],1), params[0], params[1], params[2], HT.iloc[x]["type"], HT.iloc[x]["Return"]]
     cycle.set_index("Date", inplace=True)
     timeframes_cycles.append(cycle)
@@ -251,24 +263,22 @@ app.layout = html.Div([
     value='tab-1', 
     style=tabs_styles, 
     children=[
-        dcc.Tab(label='DAILY', value='tab-1', style=tab_style, selected_style=tab_selected_style),
-        dcc.Tab(label='WEEKLY', value='tab-2', style=tab_style, selected_style=tab_selected_style),
-        dcc.Tab(label='MONTHLY', value='tab-3', style=tab_style, selected_style=tab_selected_style),
-        dcc.Tab(label='EMA 10/20', value='tab-4', style=tab_style, selected_style=tab_selected_style),
-        dcc.Tab(label='EMA 50/200', value='tab-5', style=tab_style, selected_style=tab_selected_style),
-        dcc.Tab(label='FLIPS(D)', value='tab-9', style=tab_style, selected_style=tab_selected_style),
-        dcc.Tab(label='FLIPS(M)', value='tab-209', style=tab_style, selected_style=tab_selected_style),
-        dcc.Tab(label='FLIPS(Q)', value='tab-210', style=tab_style, selected_style=tab_selected_style),
+        dcc.Tab(label='D', value='tab-1', style=tab_style, selected_style=tab_selected_style),
+        dcc.Tab(label='W', value='tab-2', style=tab_style, selected_style=tab_selected_style),
+        dcc.Tab(label='M', value='tab-3', style=tab_style, selected_style=tab_selected_style),
+        dcc.Tab(label='ema 10/20', value='tab-4', style=tab_style, selected_style=tab_selected_style),
+        dcc.Tab(label='ema 50/200', value='tab-5', style=tab_style, selected_style=tab_selected_style),
+        dcc.Tab(label='Flips(D)', value='tab-9', style=tab_style, selected_style=tab_selected_style),
+        dcc.Tab(label='Flips(M)', value='tab-209', style=tab_style, selected_style=tab_selected_style),
+        dcc.Tab(label='Flips(Q)', value='tab-210', style=tab_style, selected_style=tab_selected_style),
         #dcc.Tab(label='FLIPS(W)', value='tab-10', style=tab_style, selected_style=tab_selected_style),
-        dcc.Tab(label='+FLIPS(D)', value='tab-18', style=tab_style, selected_style=tab_selected_style),
-        #dcc.Tab(label='+FLIPS(W)', value='tab-19', style=tab_style, selected_style=tab_selected_style),
-        dcc.Tab(label='+FLIPS(M)', value='tab-28', style=tab_style, selected_style=tab_selected_style),
+        dcc.Tab(label='+Flips(D)', value='tab-18', style=tab_style, selected_style=tab_selected_style),
         dcc.Tab(label='LF', value='tab-14', style=tab_style, selected_style=tab_selected_style),
         dcc.Tab(label='DEV', value='tab-6', style=tab_style, selected_style=tab_selected_style),
         dcc.Tab(label='Dev(Trend)', value='tab-102', style=tab_style, selected_style=tab_selected_style),
-        dcc.Tab(label='STRIKE', value='tab-7', style=tab_style, selected_style=tab_selected_style),
+        dcc.Tab(label='Strikes', value='tab-7', style=tab_style, selected_style=tab_selected_style),
         dcc.Tab(label='RSI', value='tab-8', style=tab_style, selected_style=tab_selected_style),
-        dcc.Tab(label='EMA 1h/4h', value='tab-23', style=tab_style, selected_style=tab_selected_style),
+        dcc.Tab(label='ema 1h/4h', value='tab-23', style=tab_style, selected_style=tab_selected_style),
         dcc.Tab(label='MR(LT)', value='tab-24', style=tab_style, selected_style=tab_selected_style), 
         dcc.Tab(label='MR(HT)', value='tab-13', style=tab_style, selected_style=tab_selected_style),
         #dcc.Tab(label='OPEN GAPS', value='tab-17', style=tab_style, selected_style=tab_selected_style),
@@ -276,11 +286,11 @@ app.layout = html.Div([
         dcc.Tab(label='LFxPEAK', value='tab-21', style=tab_style, selected_style=tab_selected_style),
         dcc.Tab(label='SMxR%', value='tab-29', style=tab_style, selected_style=tab_selected_style),
         dcc.Tab(label='Ovr.SMxR%', value='tab-31', style=tab_style, selected_style=tab_selected_style),
-        dcc.Tab(label='PEAKS', value='tab-15', style=tab_style, selected_style=tab_selected_style),
+        dcc.Tab(label='Peaks', value='tab-15', style=tab_style, selected_style=tab_selected_style),
         dcc.Tab(label='Gaps', value='tab-16', style=tab_style, selected_style=tab_selected_style),
-        dcc.Tab(label='VOL', value='tab-26', style=tab_style, selected_style=tab_selected_style),
+        dcc.Tab(label='Vol', value='tab-26', style=tab_style, selected_style=tab_selected_style),
         dcc.Tab(label='R%', value='tab-27', style=tab_style, selected_style=tab_selected_style),
-        dcc.Tab(label='CASH.S.', value='tab-25', style=tab_style, selected_style=tab_selected_style),
+        dcc.Tab(label='Cash.S.', value='tab-25', style=tab_style, selected_style=tab_selected_style),
         dcc.Tab(label='Q.Pattern', value='tab-100', style=tab_style, selected_style=tab_selected_style),
         #dcc.Tab(label='Drawdowns', value='tab-101', style=tab_style, selected_style=tab_selected_style),
         dcc.Tab(label='Params', value='tab-103', style=tab_style, selected_style=tab_selected_style),
@@ -316,21 +326,42 @@ app.layout = html.Div([
 )
 
 def bulk_clear_cache(n_clicks):
-    import glob, os, time
-    ruta = "excels/dataframe_symbol/"
-    archivos = glob.glob(os.path.join(ruta, "*.csv"))
-    
-    time.sleep(0.5) 
-    
+    database = Database()
+    ruta = database.symbol_url()
+    archivos = glob.glob(os.path.join(ruta, "*.csv"))        
     eliminados = 0
     for f in archivos:
         try:
             os.remove(f)
             eliminados += 1
         except Exception as e:
-            print(f"No se pudo borrar {f}: {e}")
-            
-    return f"✨ {eliminados} files deleted"
+            print(f"No se pudo borrar {f}: {e}")            
+    return f"{eliminados} files deleted"
+
+
+def load(name):
+    database = Database()
+    routes = {"flips_daily": lambda: flips_calculation_all_symbols("daily"),
+            "flips_daily_now": lambda: current_flips_calculation_all_symbols("daily"),  
+            "flips_monthly": lambda: flips_calculation_all_symbols("monthly"),
+            "flips_monthly_now": lambda: current_flips_calculation_all_symbols("monthly"),
+            "flips_quarterly": lambda: flips_calculation_all_symbols("quarterly"),
+            "flips_quarterly_now": lambda: current_flips_calculation_all_symbols("quarterly"), 
+            "peaks_overview": lambda: calculation_cycle_peak_expansion_all_symbols(), 
+            "gaps_overview": lambda: calculation_closing_gaps_all_symbols(), 
+            "drawdowns_ema_10_20": lambda: calculation_drawdowns_ema_10_20(),
+            "quarter_patterns": lambda: calculation_patterns(),
+            "cash_session_open_momentum": lambda: calculation_cashsession_dynamics()}
+    df = database.import_csv(name)
+    if df is False:
+        if name[0:4] == "gaps":
+            return calculation_closing_gaps(name[6:])
+        else:
+            df = routes[name]()
+            database.save_csv(df, name)
+            return df
+    return df
+
 
 @app.callback(
     Output('graph', 'figure'),
@@ -338,24 +369,6 @@ def bulk_clear_cache(n_clicks):
      Input('tabs', 'value'),
      Input('btn-clear-all', 'n_clicks')]
 )
-
-
-def load(name):
-    database = Database()
-    routes = {"flips_daily": flips_calculation_all_symbols("daily"), "flips_weekly": flips_calculation_all_symbols("weekly"),
-              "flips_monthly": flips_calculation_all_symbols("monthly"),  "flips_quarterly": flips_calculation_all_symbols("quarterly"),
-              "currentflips_daily": current_flips_calculation_all_symbols("daily"), "currentflips_monthly": current_flips_calculation_all_symbols("monthly"),
-              "currentflips_quarterly": current_flips_calculation_all_symbols("quarterly"), "peaksoverview": calculation_cycle_peak_expansion_all_symbols(),
-              "gaps":calculation_closing_gaps(name[12:]), "gapsoverview": calculation_closing_gaps_all_symbols(),
-              "drawdowns_ema_10_20": calculation_drawdowns_ema_10_20()}
-    df = database.load_data(name)
-    if not df:
-        if name[0:4] == "gaps":
-            return calculation_closing_gaps(name[6:])
-        else: 
-            return routes[name]
-
-
 
 def render_content(asset, tab, n_clicks):
     database = Database()
@@ -366,7 +379,7 @@ def render_content(asset, tab, n_clicks):
     #    getDataframesDatabase()
     
     data = assets.loadStatistics(assets.loadTimeframes(asset))
-    current_stock = getCurrentStockPos(asset)
+    current_stock = assets.getCurrentPos(assets.getAssets("mysymbols"), asset)
     #pe_ntm = yf.Ticker(stock).info.get("forwardPE")
     #print(pe_ntm)
 
@@ -377,7 +390,6 @@ def render_content(asset, tab, n_clicks):
         fig = screen_weekly_chart(data)
         return fig
     elif tab == 'tab-3':
-        calculation_open_momentum(data)
         fig = screen_monthly_chart(data)
         return fig
     elif tab == 'tab-4':
@@ -395,30 +407,22 @@ def render_content(asset, tab, n_clicks):
         return screen_rsi_plotly(df_tab_8, asset)
     elif tab == 'tab-9':
         df_tab_9 = load("flips_daily")
-        current_flips = load("currentflips_daily")
+        current_flips = load("flips_daily_now")
         colours = colour_painting(df_tab_9, "flips", current_flips, current_stock)
         return table_fig(df_tab_9, colours)
     elif tab == 'tab-209':
         df_209 = load("flips_monthly")
-        current_flips = load("currentflips_monthly")
+        current_flips = load("flips_monthly_now")
         colours = colour_painting(df_209, "flips", current_flips, current_stock)
         return table_fig(df_209, colours)
     elif tab == 'tab-210':
         df_210 = load("flips_quarterly")
-        current_flips = load("currentflips_quarterly")
+        current_flips = load("flips_quarterly_now")
         colours = colour_painting(df_210, "flips", current_flips, current_stock)
-        return table_fig(df_210, colours)    
-    elif tab == 'tab-10':
-        df_tab_10 = database.load_data("excels/flips_weekly")
-        current_flips = database.load_data("excels/currentflips_weekly")
-        colours = colour_painting(df_tab_10, "flips", current_flips, current_stock)
-        return table_fig(df_tab_10, colours)  
+        return table_fig(df_210, colours)     
     elif tab == 'tab-12':
         longs, shorts = screener_ema_extensions()
         return screen_screener_ema_extensions(longs, shorts)
-    elif tab == 'tab-13':
-        df_tab_13 = calculation_retest_bands(data, "HT")
-        return screen_ema_retests(df_tab_13, asset, 0)
     elif tab == 'tab-14':
         names = ["excels/LastFlipOpen/daily_flip_on_" + x + "_" + asset for x in ["weekly", "monthly", "quarterly"]]
         data = [database.load_data(names[x]) for x in range(0,3)] 
@@ -426,15 +430,15 @@ def render_content(asset, tab, n_clicks):
         data = data + [database.load_data(names[x]) for x in range(0,3)] 
         return screen_last_flip_open(data, asset)
     elif tab == 'tab-15':
-        df_tab_15 = load("peaksoverview")
+        df_tab_15 = load("peaks_overview")
         colours_tab_15 = colour_painting_detailed_flips(df_tab_15, current_stock)
         return table_fig(df_tab_15, colours_tab_15)
     elif tab == 'tab-16':
-        df_tab_16 = load("gapsoverview")
+        df_tab_16 = load("gaps_overview")
         colours_tab_16 = colour_painting_simple_table(df_tab_16, current_stock)
         return table_fig(df_tab_16, colours_tab_16)
     elif tab == 'tab-17':
-        df_tab_17 = database.load_data("excels/gaps/"+asset)
+        df_tab_17 = load("gaps_"+asset)
         fig_tab_17 = screen_gaps_stock(df_tab_17, asset)
         return title_stock(fig_tab_17, asset)
     elif tab == 'tab-18':
@@ -463,13 +467,15 @@ def render_content(asset, tab, n_clicks):
         data_tab_23 = getDataStock_LT(asset, True)
         df_tab_23 = assets.loadStatistics(data_tab_23)
         return screen_ema_extension_plotly(df_tab_23, asset, 10)
+    elif tab == 'tab-13':
+        df_tab_13 = calculation_retest_bands(data[0:3])
+        return screen_ema_retests(df_tab_13, asset, 0)
     elif tab == 'tab-24':
-        data_tab_24 = getDataStock_LT(asset, True)
-        df_tab_24 = calculation_retest_bands(data_tab_24, "LT")
+        data_tab_24 = assets.loadStatistics(assets.loadLowerTimeframes(asset, True))
+        df_tab_24 = calculation_retest_bands(data_tab_24)
         return screen_ema_retests(df_tab_24, asset, 1)
     elif tab == 'tab-25':
-        data_tab_25 = calculation_cashsession_dynamics()
-        print("Llega a volver")
+        data_tab_25 = load("cash_session_open_momentum")
         return table_fig_variation(data_tab_25)
     elif tab == 'tab-26':
         data_tab_26 = screen_volatility(data, asset)
@@ -498,7 +504,7 @@ def render_content(asset, tab, n_clicks):
         print("ready to paint")
         return table_fig_variation(df)
     elif tab == 'tab-100':
-        df_100 = calculation_patterns()
+        df_100 = load("quarter_patterns")
         colours_tab_100 = colour_painting_quarter_patterns(df_100, current_stock)
         return table_fig(df_100, colours_tab_100)
     elif tab == 'tab-101':
@@ -512,7 +518,7 @@ def render_content(asset, tab, n_clicks):
         df_103 = parameters_calculation_all_symbols()
         return table_fig_variation(df_103)
     elif tab == 'tab-104':
-        df_104 =  candle_pattern(data)
+        df_104 = candle_pattern(data)
         return table_fig_variation(df_104)
     else:
         pass

@@ -181,8 +181,7 @@ def screen_screener_ema_extensions(longs, shorts):
 
 def screen_deviations(data, stock): 
     try:
-        fig = make_subplots(rows=2, cols=4, vertical_spacing=0.11, horizontal_spacing=0.04, subplot_titles=["DAILY DEVIATIONS (GREEN DAY)", "WEEKLY DEVIATIONS (GREEN WEEK)", "MONTHLY DEVIATIONS (GREEN MONTH)", "QUARTERLY DEVIATIONS (GREEN QUARTER)", "DAILY DEVIATIONS (RED DAY)", "WEEKLY DEVIATIONS (RED WEEK)", "MONTHLY DEVIATIONS (RED MONTH)", "QUARTERLY DEVIATIONS (RED QUARTER)"])
-        data = last_X_years(data, 30)
+        fig = make_subplots(rows=2, cols=5, vertical_spacing=0.11, horizontal_spacing=0.04, subplot_titles=["DAILY DEVIATIONS (GREEN DAY)", "WEEKLY DEVIATIONS (GREEN WEEK)", "MONTHLY DEVIATIONS (GREEN MONTH)", "QUARTERLY DEVIATIONS (GREEN QUARTER)", "YEARLY DEVIATIONS (GREEN YEAR)", "DAILY DEVIATIONS (RED DAY)", "WEEKLY DEVIATIONS (RED WEEK)", "MONTHLY DEVIATIONS (RED MONTH)", "QUARTERLY DEVIATIONS (RED QUARTER)", "YEARLY DEVIATIONS (RED YEAR)"])
         for i in range(len(data)):
             df = data[i]
             df_green = df[df["type"] == "Green"]
@@ -226,19 +225,30 @@ def screen_deviations(data, stock):
 
 def screen_ema_retests(data, stock, k):
     try:
+        cols = 0
         timeframes = []
         if k == 0:
-            timeframes = ["DAILY MEAN REVERSION EMA 10","WEEKLY MEAN REVERSION EMA 10"]
+            timeframes = ["DAILY MEAN REVERSION EMA 10","WEEKLY MEAN REVERSION EMA 10", "MONTHLY MEAN REVERSION EMA 10"]
+            cols = 3
         elif k == 1:
             timeframes = ["1H MEAN REVERSION EMA 10","4H MEAN REVERSION EMA 10"]
-        fig = make_subplots(rows=1, cols=2, vertical_spacing=0.10, horizontal_spacing=0.04, subplot_titles=timeframes)
+            cols = 2
+        specs = [[{"type": "table"}] * cols, [{"type": "xy"}] * cols]
+        fig = make_subplots(rows=2, cols=cols, row_heights=[0.35, 0.65], vertical_spacing=0.12, horizontal_spacing=0.04,
+            subplot_titles=timeframes + [""] * cols, specs=specs)
 
-        for i in range(len(data)-1+k):
+        rankings = []
+        for i in range(cols):
+            if data[i].empty:
+                fig.add_trace(go.Scatter(x=[], y=[], mode="markers", showlegend=False), row=2, col=i+1)
+                rankings.append((pd.DataFrame({"TimeAway": ["-"], "Occurrences": ["-"], "%": ["-"]}), None))
+                continue
+
             l = len(data[i])-1
             df = data[i][0:l].copy()
             fig.add_trace(
                 go.Scatter(x=df.index, y=df["TimeAway"], mode="markers", marker=dict(color="steelblue", size=12), showlegend=False),
-                row=1, col=i+1)
+                row=2, col=i+1)
 
             current_value = data[i]["TimeAway"].iloc[-1]
             current_time = data[i].index[-1]
@@ -246,8 +256,29 @@ def screen_ema_retests(data, stock, k):
             percentil_name = ["p95", "p80", "p50", "p20"]
             percentil_color = ["black", "black", "red", "black"]
             percentil_location = ["top right", "top right", "top right", "bottom right"]
-            fig = percentiles_and_currentValue(fig, df, 1, i+1, "TimeAway", current_value, current_time, percentil_value, percentil_name, percentil_color, percentil_location)
-            fig = right_margin_chart(fig, df, 1, i+1, 5) 
+            fig = percentiles_and_currentValue(fig, df, 2, i+1, "TimeAway", current_value, current_time, percentil_value, percentil_name, percentil_color, percentil_location)
+            fig = right_margin_chart(fig, df, 2, i+1, 5)
+
+            counts = df["TimeAway"].value_counts()
+            total = counts.sum()
+            ranking = pd.DataFrame({"TimeAway": counts.index, "Occurrences": counts.values})
+            ranking = ranking.sort_values("TimeAway", ascending=True).reset_index(drop=True)
+            pct = ranking["Occurrences"] / total * 100
+            ranking["%"] = pct.round(1)
+            ranking["Cum%"] = pct.cumsum().round(1)
+            ranking["%"] = ranking.apply(lambda r: f"{r['%']}% ({r['Cum%']}%)", axis=1)
+            rankings.append((ranking, current_value))
+
+        # las trazas de tabla se añaden al final: go.Table no tiene "xaxis", y los add_hline()
+        # de arriba fallan si ya existe una tabla en fig.data al momento de llamarlos
+        for i, (ranking, current_value) in enumerate(rankings):
+            row_colors = ["yellow" if tv == current_value else "white" for tv in ranking["TimeAway"]]
+            fig.add_trace(
+                go.Table(
+                    header=dict(values=["TimeAway", "Occ.", "%"], fill_color="black", font=dict(color="white", size=11), align="center"),
+                    cells=dict(values=[ranking["TimeAway"], ranking["Occurrences"], ranking["%"]], fill_color=[row_colors, row_colors, row_colors], font=dict(color="black", size=11), align="center", height=22)
+                ),
+                row=1, col=i+1)
         fig = title_stock(fig, stock)
         return fig
     except Exception as e:
@@ -394,7 +425,7 @@ def screen_volatility(data, stock):
 
 
 def screen_returns(data, stock):
-    fig = make_subplots(rows=2, cols=3, vertical_spacing=0.10, horizontal_spacing=0.04, subplot_titles=["Daily Returns (Green)", "Weekly Returns (Green)", "Monthly Returns (Green)", "Daily Returns (Red)", "Weekly Returns (Red)", "Monthly Returns (Red)"])
+    fig = make_subplots(rows=2, cols=5, vertical_spacing=0.10, horizontal_spacing=0.04, subplot_titles=["Daily Returns (Green)", "Weekly Returns (Green)", "Monthly Returns (Green)", "Quarterly Returns (Green)", "Yearly Returns (Green)", "Daily Returns (Red)", "Weekly Returns (Red)", "Monthly Returns (Red)", "Quarterly Returns (Red)", "Yearly Returns (Red)"])
     column = 1
     for df in data:
         total_time = df.index[-1] - df.index[0]            
@@ -523,15 +554,15 @@ def screen_12_25_cross(planning, execution):
 
 def screen_trend_deviation(data, stock):
     # total velas que abrieron >0.2% arriba de EMA10 y tuvieron low >0.2% abajo
-    open_above_low_below = data[(data["Open"] > data["EMA_10"] * 1.002) & (data["Low"] < data["EMA_10"] * 0.998)]
+    open_above_low_below = data[(data["Open"] > data["ema10"] * 1.002) & (data["Low"] < data["ema10"] * 0.998)]
     total_touches = len(open_above_low_below)
-    absorbed = len(open_above_low_below[open_above_low_below["Close"] > open_above_low_below["EMA_10"] * 1.002])
+    absorbed = len(open_above_low_below[open_above_low_below["Close"] > open_above_low_below["ema10"] * 1.002])
     abs_pct = round(absorbed / total_touches * 100, 1) if total_touches > 0 else 0
     stock_label = f"{stock} | Abs: {absorbed}/{total_touches} ({abs_pct}%)"
 
     df1 = data[(data["EMA10_Absortion"] == True)].copy()
-    df2 = data[(data["EMA10_Absortion"] == True) & (data["MinClose1"] >= data["EMA_10"])].copy()
-    df3 = data[(data["EMA10_Absortion"] == True) & (data["MinClose2"] >= data["EMA_10"])].copy()
+    df2 = data[(data["EMA10_Absortion"] == True) & (data["MinClose1"] >= data["ema10"])].copy()
+    df3 = data[(data["EMA10_Absortion"] == True) & (data["MinClose2"] >= data["ema10"])].copy()
     
     try:
         dfs = [df1, df2, df3]

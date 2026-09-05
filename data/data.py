@@ -4,94 +4,10 @@ import numpy as np
 import time
 from analytics.statistics_calculations import *
 from analytics.flips_calculation import *
-
-def getSymbols():
-    symbols = ["^GSPC", "ASTS", "RKLB", "IREN", "MU", "NVDA", "GOOGL", "AAPL", "AMZN", "AMD", "MSFT", "NFLX", "META", "ORCL", "INTC", "TSLA", "NVO", "BABA", "BIDU", "JD", "GC=F", "SI=F", "CL=F", "BTC-USD", "ETH-USD"]
-    return symbols
-
-def get_hyperliquid_symbols():
-    symbols = ["BTC-USD", "ETH-USD","NVDA", "TSLA", "MU", "GOOGL", "PLTR", "INTC", "AAPL", "AMZN", "AMD", "MSFT", "NFLX", "META", "ORCL", "BABA", "GC=F", "SI=F"]
-    return symbols
-
-def getCurrentStockPos(stock):
-    symbols = getSymbols()
-    pos = 0
-    for symbol in symbols:
-        if symbol == stock:
-            return pos
-        pos = pos + 1
-    return 0
-
-def get_sp500_symbols():
-    symbols = ["MMM","AOS","ABT","ABBV","ACN","ADBE","AMD","AES","AFL","A","APD","AKAM","ALK","ALB","ARE","ALGN","ALLE","LNT","ALL","GOOGL","MO","AMZN","AMCR","AEE","AAL","AEP","AXP","AIG","AMT","AWK","AMP","AME","AMGN","APH","ADI","AON","APA","AAPL","AMAT","APTV","ACGL","ADM","ANET","AJG","AIZ","T","ATO","ADSK","ADP","AZO","AVB","AVY","AXON","BKR","BALL","BAC","BBWI","BAX","BDX","BBY","BIO","TECH","BIIB","BLK","BX","BA","BK","BWA","BSX","BMY","AVGO","BR","BRO","CHRW","CDNS","CZR","CPT","CPB","COF","CAH","KMX","CCL","CARR","CAT","CBOE","CBRE","CDW","CE","COR","CNC","CNP","CF","CRL","SCHW","CHTR","CVX","CMG","CB","CHD","CI","CINF","CTAS","CSCO","C","CFG","CLX","CME","CMS","KO","CTSH","CL","CMCSA","CAG","COP","ED","STZ","CEG","COO","CPRT","GLW","CTVA","CSGP","COST","CTRA","CRWD","CCI","CSX","CMI","CVS","DHI","DHR","DRI","DVA","DECK","DE","DAL","DVN","DXCM","FANG","DLR","DG","DLTR","D","DPZ","DOV","DOW","DTE","DUK","DD","EMN","ETN","EBAY","ECL","EIX","EW","EA","ELV","LLY","EMR","ENPH","ETR","EOG","EPAM","EQT","EFX","EQIX","EQR","ESS","EL","EG","EVRG","ES","EXC","EXPE","EXPD","EXR","XOM","FFIV","FDS","FICO","FAST","FRT","FDX","FIS","FITB","FSLR","FE","FI","FMC","F","FTNT","FTV","FOXA","FOX","BEN","FCX","GRMN","IT","GE","GEHC","GEV","GEN","GNRC","GD","GIS","GM","GPC","GILD","GPN","GL","GDDY","GS","HAL","HIG","HAS","HCA","DOC","HSIC","HSY","HES","HPE","HLT","HOLX","HD","HON","HRL","HST","HWM","HPQ","HUBB","HUM","HBAN","HII","IBM","IEX","IDXX","ITW","INCY","IR","PODD","INTC","ICE","IFF","IP","IPG","INTU","ISRG","IVZ","INVH","IQV","IRM","JBHT","JBL","JKHY","J","JNJ","JCI","JPM","JNPR","K","KVUE","KDP","KEY","KEYS","KMB","KIM","KMI","KKR","KLAC","KHC","KR","LHX","LH","LRCX","LW","LVS","LDOS","LEN","LII","LLY","LIN","LYV","LKQ","LMT","L","LOW","LULU","LYB","MTB","MRO","MPC","MKTX","MAR","MMC","MLM","MAS","MA","MTCH","MKC","MCD","MCK","MDT","MRK","META","MET","MTD","MGM","MCHP","MU","MSFT","MAA","MRNA","MHK","MOH","TAP","MDLZ","MPWR","MNST","MCO","MS","MOS","MSI","MSCI","NDAQ","NTAP","NFLX","NEM","NWSA","NWS","NEE","NKE","NI","NDSN","NSC","NTRS","NOC","NCLH","NRG","NUE","NVDA","NVR","NXPI","ORLY","OXY","ODFL","OMC","ON","OKE","ORCL","OTIS","PCAR","PKG","PLTR","PANW","PARA","PH","PAYX","PAYC","PYPL","PNR","PEP","PFE","PCG","PM","PSX","PNW","PXD","PNC","POOL","PPG","PPL","PFG","PG","PGR","PLD","PRU","PEG","PTC","PSA","PHM","QRVO","PWR","QCOM","DGX","RL","RJF","RTX","O","REG","REGN","RF","RSG","RMD","RVTY","ROK","ROL","ROP","ROST","RCL","SPGI","CRM","SBAC","SLB","STX","SRE","NOW","SHW","SPG","SWKS","SJM","SW","SNA","SOLV","SO","LUV","SWK","SBUX","STT","STLD","STE","SYK","SYF","SNPS","SYY","TMUS","TROW","TTWO","TPR","TRGP","TGT","TEL","TDY","TFX","TER","TSLA","TXN","TXT","TMO","TJX","TSCO","TT","TDG","TRV","TRMB","TFC","TYL","TSN","USB","UBER","UDR","ULTA","UNP","UAL","UPS","URI","UNH","UHS","VLO","VTR","VLTO","VRSN","VRSK","VZ","VRTX","VFC","VTRS","VICI","V","VST","VMC","WRB","GWW","WAB","WBA","WMT","DIS","WBD","WM","WAT","WEC","WFC","WELL","WST","WDC","WY","WSM","WMB","WTW","WYNN","XEL","XYL","YUM","ZBRA","ZBH","ZION","ZTS"]
-    return symbols
-
-def get_nasdaq_non_sp500():
-    symbols = ["ASML", "KLAC", "LRCX", "MCHP", "MPWR", "ENTG", "OLED", "AMKR", "COHR", "MRVL", "SWKS", "QRVO", "AMBA", "DIOD", "DDOG", "MDB", "ZS", "CRWD", "NET", "OKTA", "DOCU", "BILL", "ROKU", "TTD", "APP", "MANH", "PCTY", "PAYC", "GWRE", "HUBS", "APPN", "SMAR", "APPF", "REGN", "MRNA", "SRPT", "NBIX", "BPMC", "CRSP", "ALNY", "IONS", "EXEL", "ARWR", "ACAD", "JAZZ", "LGND", "PRGO", "ETSY", "PINS", "CELH", "CVNA", "ABNB", "DASH", "FIVE", "WING", "CHWY", "LULU", "MARA", "RIOT", "ENPH", "FSLR", "LPLA", "IBKR", "MKTX", "ILMN", "LYFT", "WIX", "EPAM", "GLOB", "CSGP", "EXLS", "ASTS", "COIN", "HOOD", "SOFI", "PLTR", "AFRM", "UPST", "CLSK", "CIFR", "HUT", "IREN", "SNOW", "AI", "PATH", "U", "S", "GTLB", "ESTC", "SMAR", "ARM", "ALAB", "SMCI", "RIVN", "LCID", "RKLB", "JOBY", "ACHR", "VKTX", "RXRX", "BEAM", "EDIT", "NTLA", "SEDG", "RUN", "ARRY", "CHPT", "ONON", "CAVA", "RDDT", "BMBL", "IOT", "FOUR", "PAYO", "APP", "APLD", "GRAB", "TEM", "SYM"]
-    return symbols
-
-def get_crypto_symbols():
-    symbols = ["BTC-USD", "ETH-USD", "SOL-USD", "LINK-USD", "BNB-USD"]
-    return symbols
-
-def get_commodities_symbols():
-    symbols = ["GC=F", "SI=F", "CL=F", "PL=F", "PA=F"]
-    return symbols
-
-def get_china_symbols():
-    symbols = ["BABA", "JD", "PDD", "BIDU", "TCEHY", "NTES", "BILI", "NIO", "XPEV", "LI", "BYDDY", "TME", "WB", "VIPS", "YMM", "DADA", "MNSO", "ZTO", "BEKE", "HTHT", "EDU", "TAL", "RLX", "QFIN", "LU", "KC", "TUYA"]
-    return symbols
-
-def get_japan_adrs_symbols():
-    symbols = ["TM","SONY","HMC","MUFG","SMFG","MFG","NMR","NTTYY","KDDIY","SFTBY","NTDOY"]
-    return symbols
-
-def get_forex_symbols():
-    symbols = ["EURUSD=X", "GBPUSD=X", "USDJPY=X", "AUDUSD=X", "USDCAD=X", "USDCHF=X", "NZDUSD=X", "EURGBP=X", "EURJPY=X", "GBPJPY=X"]
-    return symbols
-
-def get_european_symbols():
-    symbols = [
-        # Germany
-        "SIE.DE", "SAP.DE", "AIR.PA", "ALV.DE", "MUV2.DE", "BAYN.DE", "BMWG.DE", "VOW3.DE", "MBG.DE", "DTE.DE", "DBK.DE", "BAS.DE", "EOAN.DE", "RWE.DE", "HEN3.DE", "MRK.DE", "FRE.DE", "FME.DE", "IFX.DE", "ZAL.DE", "P911.DE", "PAH3.DE", "CON.DE", "SHL.DE", "QIA.DE", "BEI.DE", "1COV.DE", "MTX.DE",
-        # France
-        "OR.PA", "MC.PA", "RMS.PA", "BNP.PA", "ACA.PA", "CS.PA", "KER.PA", "DSY.PA", "CAP.PA", "SU.PA", "AI.PA", "EL.PA", "TTE.PA", "SAF.PA", "ENGI.PA", "STM.PA", "PUB.PA", "HO.PA", "ATO.PA", "VIE.PA", "LR.PA",
-        # Netherlands
-        "ASML.AS", "ADYEN.AS", "ASMI.AS", "BESI.AS", "HEIA.AS", "PHIA.AS", "NN.AS", "ABN.AS", "INGA.AS", "RAND.AS", "WKL.AS", "PRX.AS", "UMG.AS", "MT.AS", "AKZA.AS",
-        # UK
-        "AZN.L", "SHEL.L", "BP.L", "HSBA.L", "GSK.L", "ULVR.L", "RIO.L", "AAL.L", "BT.L", "VOD.L", "LSEG.L", "BA.L", "REL.L", "DGE.L", "GLEN.L", "BARC.L", "NWG.L", "STAN.L", "PRU.L", "AV.L", "NG.L", "SMIN.L", "RR.L", "III.L", "EXPN.L", "AUTO.L", "HLMA.L", "CRH.L",
-        # Switzerland
-        "NESN.SW", "ROG.SW", "NOVN.SW", "ABBN.SW", "ZURN.SW", "LONN.SW", "SREN.SW", "UBSG.SW", "SIKA.SW", "CFR.SW", "GIVN.SW", "HOLN.SW", "SCMN.SW", "LOGN.SW", "TEMN.SW",
-        # Spain
-        "SAN.MC", "BBVA.MC", "ITX.MC", "IBE.MC", "REP.MC", "TEF.MC", "CABK.MC", "AMS.MC", "FER.MC", "AENA.MC", "GRF.MC", "ANA.MC", "COL.MC",
-        # Italy
-        "ENI.MI", "ENEL.MI", "ISP.MI", "UCG.MI", "LDO.MI", "RACE.MI", "STLAM.MI", "PIRC.MI", "TEN.MI", "MONC.MI", "AMP.MI",
-        # Sweden
-        "ERICB.ST", "VOLVA.ST", "ATCOA.ST", "SAND.ST", "ESSITY.ST", "NDA-SE.ST", "SEB-A.ST", "SKF-B.ST", "EVO.ST", "HEXAB.ST",
-        # Denmark
-        "NOVO-B.CO", "MAERSK-B.CO", "ORSTED.CO", "DSV.CO", "CARL-B.CO", "DEMANT.CO",
-        # Finland
-        "NOKIA.HE", "KNEBV.HE", "UPM.HE", "STERV.HE",
-        # Norway
-        "EQNR.OL", "DNB.OL", "AKER.OL",
-        # Belgium
-        "UCB.BR", "SOLB.BR", "KBC.BR",
-        # Ireland
-        "RYA.IR", "A5G.IR"
-    ]
-    return list(dict.fromkeys(symbols))
-
-
-def valid_stock(stock):
-    symbols = getSymbols()
-    if stock in symbols:
-        return True
-    else:
-        return False    
-    
-    
+ 
 def getDataframesDatabase():
-    symbols = getSymbols()
+    assets = Assets()
+    symbols = assets.getAssets("mysymbols")
     for symbol in symbols:
         time.sleep(1) 
         name = "excels/dataframe_symbol/" + symbol + ".csv"
@@ -103,32 +19,6 @@ def getDataframesDatabase():
                 stock_daily.columns = stock_daily.columns.get_level_values(0)
             stock_daily.to_csv(name)
     print("Symbols dataframes saved")
-
-
-def getDataStock(symbol):  
-    name = "excels/dataframe_symbol/" + symbol + ".csv"
-    load = True
-    try:
-        stock_daily = pd.read_csv(name, index_col=0)
-        if "Ticker" in stock_daily.columns or "Price" in stock_daily.columns:
-            stock_daily = pd.read_csv(name, header=[0, 1], index_col=0, parse_dates=True)
-            stock_daily.columns = stock_daily.columns.get_level_values(0)
-    except FileNotFoundError:
-        stock_daily = yf.download(symbol, interval="1d", auto_adjust=False, progress=False, period="max") #parametrizo por eficiencia para algunos metodos?
-        load = False
-    if isinstance(stock_daily.columns, pd.MultiIndex):
-        stock_daily.columns = stock_daily.columns.get_level_values(0)
-    
-    stock_daily = stock_daily[stock_daily["Low"] > 0]
-
-    if not load:
-        stock_daily.to_csv(name)
-    stock_daily.index = pd.to_datetime(stock_daily.index, utc=True)
-    stock_daily.index = stock_daily.index.normalize()
-    stock_daily = stock_daily.sort_index()
-    stock_weekly = stock_daily.resample('W-MON', label='left', closed='left').agg({'Open': 'first','High': 'max','Low': 'min','Close': 'last','Volume': 'sum'})
-    stock_monthly = stock_daily.resample('MS', label='left', closed='left').agg({'Open': 'first','High': 'max','Low': 'min','Close': 'last','Volume': 'sum'})
-    return [stock_daily, stock_weekly, stock_monthly]
 
 
 def getDataStock_LT(symbol, prepost):
@@ -169,86 +59,15 @@ def getDataStock_MT(symbol):
     return data_MicroT
 
 
-def rsi_tradingview(prices, period=14): #calculation of rsi
-    delta = prices.diff()
-    gain = delta.clip(lower=0)
-    loss = -delta.clip(upper=0)
-    avg_gain = gain.ewm(alpha=1/period, adjust=False).mean()
-    avg_loss = loss.ewm(alpha=1/period, adjust=False).mean()
-    rs = avg_gain / avg_loss
-    rsi = 100 - (100 / (1 + rs))
-    return rsi
 
 
-def preparingData(data):
-    new_data = []
-    for df in data:
-        df = df.copy()
-        if not df.empty:
-            df["Last_Close"] = df["Close"].shift(1)
-            df["Next_Close"] = df["Close"].shift(-1)
-            df["type"] = np.where(df["Close"] > df["Last_Close"], "Green", "Red")
-            df["rsi"] = rsi_tradingview(df['Close'])
-            df["Return"] = round(((df["Close"] / df["Last_Close"])-1)*100,1)
-            df["Return_NextDay"] = round(((df["Close"] / df["Next_Close"])-1)*100,1)
-            df["ReturnHigh"] = round(((df["High"] / df["Last_Close"])-1)*100,1)
-            df["Volatility"] = np.abs(1-(df["High"]/df["Low"]))*100
-            df['Volatility_Rolling'] = df["Volatility"].ewm(alpha=1/14, adjust=False).mean()
-            df["Vol_Raw"] = np.log(df["High"] / df["Low"]) * 100
-            df["Vol_EMA"] = df["Vol_Raw"].ewm(span=14, adjust=False).mean()
-            df["EMA_10"] = df["Close"].ewm(span=10, adjust=False).mean()
-            df["EMA_20"] = df["Close"].ewm(span=20, adjust=False).mean()
-            df["EMA_12"] = df["Close"].ewm(span=12, adjust=False).mean()
-            df["EMA_25"] = df["Close"].ewm(span=25, adjust=False).mean()
-            #df["Upper_wick"] = df["High"] - df[["Open", "Close"]].max(axis=1)
-            #df["Lower_wick"] = df[["Open", "Close"]].min(axis=1) - df["Low"]
-        new_data.append(df)
-    return new_data
 
 
-def create_hightimeframes(timeframes, lower_timeframe):
-    df_quarters = timeframes[2].resample('QS', label='left', closed='left').agg({'Open': 'first','High': 'max','Low': 'min','Close': 'last','Volume': 'sum'})
-    df_years = df_quarters.resample('YS').agg({'Open': 'first', 'High': 'max', 'Low': 'min', 'Close': 'last', 'Volume': 'sum'})
-    if lower_timeframe == "daily":
-        timeframes.append(df_quarters)
-        return timeframes
-    elif lower_timeframe == "weekly" or lower_timeframe == "monthly":
-        timeframes.append(df_quarters)
-        timeframes.append(df_years)
-        return timeframes
 
 
-def last_year(data):
-    # 1. Aseguramos que el índice sea Datetime antes de operar
-    df = data[0].copy()
-    df.index = pd.to_datetime(df.index)    
-    last_date = df.index.max()
-    cutoff_date = last_date - pd.DateOffset(years=1)
-    daily_returns = df.loc[df.index >= cutoff_date].copy()    
-    return daily_returns
 
 
-def last_X_years(data, num_years):
-    timeframes = []
-    for df_aux in data:
-        df = df_aux.copy()
-        df.index = pd.to_datetime(df.index)   
-        last_date = df.index.max()
-        cutoff_date = last_date - pd.DateOffset(years=num_years)
-        timeframe = df.loc[df.index >= cutoff_date].copy()
-        timeframes.append(timeframe)
-    return timeframes
 
-
-def preparing_timeframes(symbol, lower_timeframe):
-    aux_timeframes = getDataStock(symbol)    
-    aux_timeframes_2 = last_X_years(aux_timeframes, 30)
-    if lower_timeframe != "":
-        timeframes = create_hightimeframes(aux_timeframes_2, lower_timeframe)
-    else:
-        timeframes = aux_timeframes_2.copy()
-    data_candles = preparingData(timeframes) 
-    return data_candles
 
 
     

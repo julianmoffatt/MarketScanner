@@ -1,27 +1,56 @@
-from analytics.statistics_calculations import *
-from analytics.flips_calculation import *
+from pathlib import Path
+import pandas as pd
 
 class Database():
+    sections = ["flips","gaps","peaks","strikes","mean_reversion", "cash_session", "drawdowns"]
+
     def __init__(self):
             pass     
 
-    @staticmethod
-    def import_csv(name):
+    @classmethod
+    def import_csv(cls, name):
         try:
-            df = pd.read_csv("excels/" + name + ".csv", index_col=0)
+            section = cls.getSection(name)
+            url = cls.url_database() + section + "/" + name + ".csv"
+            df = pd.read_csv(url, index_col=0)
             df.index.name = None
-            print("Importando", name)
             if not df.empty:
+                print("CSV importado: ", url)
                 return df
             else:    
                 return False      
         except Exception as e:
-              print(e)
+              return False
+
+    @classmethod
+    def save_csv(cls, df, name):
+        try:
+            section = cls.getSection(name)
+            url = cls.url_database() + section + "/" + name + ".csv"
+            print("CSV guardado: ", url)
+            df.to_csv(url)
+        except Exception as e:
+            print(e)
 
     @staticmethod
-    def save_csv(df, name, type):
-        if type == "symbol":
-            dir = "excels/dataframe/" + name + "csv"
-        elif type == "statistics":
-            dir = "excels/statistics/" + name + "csv"
-        df.to_csv(dir)
+    def url_database():
+        current_dir = Path(__file__).resolve()
+        father_dir = current_dir.parent.parent.parent
+        url = str(father_dir) + "/Database/"
+        return url
+
+    @classmethod
+    def getSection(cls, name):
+        for section in cls.sections:
+            if section in name:
+                return section
+        return "dataframe"
+
+    @classmethod
+    def symbol_url(cls):
+        return cls.url_database() + "dataframe/"
+
+         
+         
+        
+         
