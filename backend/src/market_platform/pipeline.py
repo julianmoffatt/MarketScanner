@@ -10,13 +10,17 @@ timeframe_base = ["daily", "1h", "1m"] # t: que timeframes con que base de estas
 premarket_postmarket = [False, True, True]
 timeframe_names = [["daily", "weekly", "monthly", "quarterly", "yearly"], ["1h", "4h"], ["1min", "5min", "15min", "30min"]]
 
-def getTimeframes(symbol, t):
+
+def createTimeframes_pipeline(symbol, t):
     #ingestion
     df_base = ingestion.loadBaseTimeframe(symbol, timeframe_base[t], premarket_postmarket[t])
     #preprocessing
     timeframes_aux = preprocessing.preprocessing(df_base, t)
     #build features
     timeframes = build_features.build_features(timeframes_aux)
+    #save csv's
+    for i, timeframe_name in enumerate(timeframe_names[t]):
+        storage.save_csv(timeframes[i], symbol + "_" + timeframe_name, "processed")
     return timeframes
 
 
@@ -25,15 +29,8 @@ def processedTimeframes(symbol, t):
     for t, name in enumerate(timeframe_names[t]):
         df = storage.import_csv(symbol + "_" + name, "processed")
         if df is False:
-            return processedTimeframes_pipeline(symbol, t)
+            return createTimeframes_pipeline(symbol, t)
         timeframes.append(df)
-    return timeframes
-
-
-def processedTimeframes_pipeline(symbol, t):
-    timeframes = getTimeframes(symbol, t)
-    for i, timeframe_name in enumerate(timeframe_names[t]):
-        storage.save_csv(timeframes[i], symbol + "_" + timeframe_name, "processed")
     return timeframes
 
 
@@ -42,4 +39,4 @@ def loadDatabase():
     symbols =  config["universes"]["mysymbols"]
     for symbol in symbols:
         time.sleep(0.25) 
-        processedTimeframes_pipeline(symbol, 0)
+        createTimeframes_pipeline(symbol, 0)

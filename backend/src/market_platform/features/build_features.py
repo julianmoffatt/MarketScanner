@@ -23,6 +23,7 @@ def build_features(timeframes):
         new_data.append(df)
     return new_data
 
+
 def rsi_tradingview(prices, period=14): #calculation of rsi
     delta = prices.diff()
     gain = delta.clip(lower=0)
