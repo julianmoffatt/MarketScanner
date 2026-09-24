@@ -3,15 +3,18 @@ from backend.src.market_platform.data import ingestion, preprocessing, storage
 from backend.src.market_platform.features import build_features
 from backend.src.market_platform.utils.config import load_config
 import time
+from functools import lru_cache
+import pandas as pd
 
 #lectura de simbolos de archivo yaml
 config = load_config()
-timeframe_base = ["daily", "1h", "1m"] # t: que timeframes con que base de estas se necesitan
+timeframe_base = ["1d", "1h", "1m"] # t: que timeframes con que base de estas se necesitan
 premarket_postmarket = [False, True, True]
 timeframe_names = [["daily", "weekly", "monthly", "quarterly", "yearly"], ["1h", "4h"], ["1min", "5min", "15min", "30min"]]
 
 
 def createTimeframes_pipeline(symbol, t):
+    symbol = symbol.upper()
     #ingestion
     df_base = ingestion.loadBaseTimeframe(symbol, timeframe_base[t], premarket_postmarket[t])
     #preprocessing
@@ -20,14 +23,15 @@ def createTimeframes_pipeline(symbol, t):
     timeframes = build_features.build_features(timeframes_aux)
     #save csv's
     for i, timeframe_name in enumerate(timeframe_names[t]):
-        storage.save_csv(timeframes[i], symbol + "_" + timeframe_name, "processed")
+        storage.save_csv(timeframes[i], symbol + "_" + timeframe_name, "processed/")
     return timeframes
 
-
+@lru_cache(maxsize=128) #para cachear el dataframe importado - ver maneras de forzar actualizacion cuando necesario
 def processedTimeframes(symbol, t):
+    symbol = symbol.upper()
     timeframes = []
-    for t, name in enumerate(timeframe_names[t]):
-        df = storage.import_csv(symbol + "_" + name, "processed")
+    for i, name in enumerate(timeframe_names[t]):
+        df = storage.import_csv(symbol + "_" + name, "processed/", parse_dates=True)
         if df is False:
             return createTimeframes_pipeline(symbol, t)
         timeframes.append(df)

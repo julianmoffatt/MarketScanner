@@ -10,30 +10,34 @@ def loadBaseTimeframe(symbol, timeframe_base, premarket_postmarket):
     df = import_csv(name, "raw/")
     if df is False:
         df = yf.download(name_sustitution(symbol), interval=timeframe_base, auto_adjust=False, progress=False, period="max", prepost = premarket_postmarket) #parametrizo por eficiencia para algunos metodos?
+        if df.empty:
+            raise ValueError(f"No se encontraron datos en Yahoo Finance para '{symbol}'")
         save_csv(df, name, "raw/")
-    elif "Ticker" in df.columns or "Price" in df.columns:
+    elif "Ticker" in df.index or df.index.name == "Price":
         url = url_database() + "raw/" + name + ".csv"
-        df = pd.read_csv(url, header=[0, 1], index_col=0, parse_dates=True)
+        df = pd.read_csv(url, header=[0, 1], index_col=0, parse_dates=True, skiprows=[2])
+    print(df)
     return df
 
 
 # se hace en ingest y no hace falta mas
 def name_sustitution(name):
-    if name == "SP500":
+    key = name.upper()
+    if key == "SP500":
         return "^GSPC"
-    elif name == "GOLD":
+    elif key == "GOLD":
         return "GC=F"
-    elif name == "SILVER":
+    elif key == "SILVER":
         return "SI=F"
-    elif name == "OIL":
+    elif key == "OIL":
         return "CL=F"
-    elif name == "PLATINUM":
+    elif key == "PLATINUM":
         return "PL=F"
-    elif name == "PALLADIUM":
+    elif key == "PALLADIUM":
         return "PA=F"
-    elif name == "BTC":
+    elif key == "BTC":
         return "BTC-USD"
-    elif name == "ETH":
+    elif key == "ETH":
         return "ETH-USD"
     else:
         return name

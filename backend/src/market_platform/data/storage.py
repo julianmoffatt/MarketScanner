@@ -1,10 +1,10 @@
 from pathlib import Path
 import pandas as pd
 
-def import_csv(name, data_section):
+def import_csv(name, data_section, parse_dates=False):
     try:
         url = url_database() + data_section + name + ".csv"
-        df = pd.read_csv(url, index_col=0)
+        df = pd.read_csv(url, index_col=0, parse_dates=parse_dates)
         df.index.name = None
         if not df.empty:
             print("CSV importado: ", url)

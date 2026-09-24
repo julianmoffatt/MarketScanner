@@ -1,0 +1,10 @@
+{
+  "name": "market-scanner",
+  "private": true,
+  "scripts": {
+    "dev": "concurrently -n backend,frontend -c blue,green \"py -3.11 -m uvicorn backend.src.market_platform.api.main:app --port 8000 --reload --app-dir .\" \"npm --prefix frontend run dev\""
+  },
+  "devDependencies": {
+    "concurrently": "^9.0.0"
+  }
+}

@@ -1,59 +1,74 @@
-from backend.src.market_platform.data.ingestion import *
 import pandas as pd
 
-def calculation_patterns():
-    try:
-        assets = Assets()
-        all_patterns = ['GGG','GGR','GRG','GRR','RRR','RRG','RGR','RGG']
-        green_patterns = ['GGG', 'GGR', 'GRG', 'GRR']
-        red_patterns   = ['RRR', 'RRG', 'RGR', 'RGG']
-        gg_patterns = ['GGG', 'GGR']
-        gr_patterns = ['GRG', 'GRR']
-        rr_patterns = ['RRR', 'RRG']
-        rg_patterns = ['RGR', 'RGG']
-        symbols = assets.getAssets("mysymbols")
-        data = []
-        for symbol in symbols:
-            data_aux = assets.loadStatistics(assets.loadTimeframes(symbol))
-            monthly = data_aux[2].copy()
-            monthly['year']       = monthly.index.year
-            monthly['quarter']    = monthly.index.quarter
-            monthly['month_of_q'] = monthly.index.month - (monthly['quarter'] - 1) * 3
-            results = []
-            for (year, quarter), group in monthly.groupby(['year', 'quarter']):
-                group = group.sort_values('month_of_q')
-                if len(group) != 3:
-                    continue
-                pattern = ''.join(group['type'].map({'Green': 'G', 'Red': 'R'}).tolist())
-                results.append({
-                    'symbol':  symbol,
-                    'year':    year,
-                    'quarter': quarter,
-                    'pattern': pattern,
-                })
-            df_patterns = pd.DataFrame(results)
-            if not df_patterns.empty:
-                pattern_counts = (df_patterns.groupby('pattern').size().reindex(all_patterns, fill_value=0))
-                total = pattern_counts.sum()
-                pattern_formatted = pattern_counts.apply(lambda x: f"{round(x/total*100)}% ({x})" if total > 0 else "0% (0)")
-                row = {'symbol': symbol} | pattern_formatted.to_dict()
-                data.append(row)
-                total_green = pattern_counts[green_patterns].sum()
-                total_red   = pattern_counts[red_patterns].sum()
-                pattern_green = pattern_counts[green_patterns].apply(lambda x: f"{round(x/total_green*100)}% ({x})" if total_green > 0 else "0% (0)")
-                pattern_red   = pattern_counts[red_patterns].apply(lambda x: f"{round(x/total_red*100)}% ({x})"   if total_red   > 0 else "0% (0)")
-                row = {'symbol': symbol} | pattern_green.to_dict() | pattern_red.to_dict()
-                data.append(row)
-                total_gg = pattern_counts[gg_patterns].sum()
-                total_gr = pattern_counts[gr_patterns].sum()
-                total_rr = pattern_counts[rr_patterns].sum()
-                total_rg = pattern_counts[rg_patterns].sum()                
-                pattern_gg = pattern_counts[gg_patterns].apply(lambda x: f"{round(x/total_gg*100)}% ({x})" if total_gg > 0 else "0% (0)")
-                pattern_gr = pattern_counts[gr_patterns].apply(lambda x: f"{round(x/total_gr*100)}% ({x})" if total_gr > 0 else "0% (0)")
-                pattern_rr = pattern_counts[rr_patterns].apply(lambda x: f"{round(x/total_rr*100)}% ({x})" if total_rr > 0 else "0% (0)")
-                pattern_rg = pattern_counts[rg_patterns].apply(lambda x: f"{round(x/total_rg*100)}% ({x})" if total_rg > 0 else "0% (0)")
-                row = {'symbol': symbol} | pattern_gg.to_dict() | pattern_gr.to_dict() | pattern_rr.to_dict() | pattern_rg.to_dict()
-                data.append(row)
-        return pd.DataFrame(data)
-    except Exception as e:
-        print(e)
+ALL_PATTERNS = ["GGG", "GGR", "GRG", "GRR", "RRR", "RRG", "RGR", "RGG"]
+
+
+def _still_possible(prefix):
+    """Patrones completos compatibles con los meses ya conocidos del trimestre
+    en curso (0, 1 o 2 letras). Con prefix="" (trimestre recien empezado)
+    los 8 siguen siendo posibles."""
+    return [p for p in ALL_PATTERNS if p.startswith(prefix)]
+
+
+def compute(timeframes):
+    monthly = timeframes[2].copy()
+    monthly["year"] = monthly.index.year
+    monthly["quarter"] = monthly.index.quarter
+    monthly["month_of_q"] = monthly.index.month - (monthly["quarter"] - 1) * 3
+    monthly["letter"] = monthly["type"].map({"Green": "G", "Red": "R"})
+
+    # el ultimo candle mensual puede seguir en curso (el mes calendario actual
+    # todavia no ha cerrado) aunque ya aparezca como fila -- no cuenta como
+    # mes cerrado. Se separa para sacar el patron parcial del trimestre en
+    # curso y no contaminar los patrones completos historicos.
+    now = pd.Timestamp.now(tz=monthly.index.tz)
+    last_is_open = (monthly.index[-1].year == now.year) and (monthly.index[-1].month == now.month)
+
+    current_quarter, current_prefix = None, ""
+    if last_is_open:
+        current_year = monthly["year"].iloc[-1]
+        current_quarter = monthly["quarter"].iloc[-1]
+        closed_this_quarter = monthly.iloc[:-1]
+        closed_this_quarter = closed_this_quarter[
+            (closed_this_quarter["year"] == current_year) & (closed_this_quarter["quarter"] == current_quarter)
+        ].sort_values("month_of_q")
+        current_prefix = "".join(closed_this_quarter["letter"].tolist())
+        monthly = monthly.iloc[:-1]
+
+    groups = list(monthly.groupby(["year", "quarter"]))
+
+    panels = []
+    for quarter_number in [1, 2, 3, 4]:
+        patterns = []
+        for (_, q), group in groups:
+            if q != quarter_number or len(group) != 3:
+                continue
+            group = group.sort_values("month_of_q")
+            patterns.append("".join(group["letter"].tolist()))
+
+        counts = {p: patterns.count(p) for p in ALL_PATTERNS}
+        total = sum(counts.values())
+        is_current = quarter_number == current_quarter
+        possible = _still_possible(current_prefix) if is_current else ALL_PATTERNS
+
+        rows = [
+            {
+                "pattern": p,
+                "count": counts[p],
+                "pct": (counts[p] / total * 100) if total > 0 else 0.0,
+                "is_possible": p in possible,
+            }
+            for p in ALL_PATTERNS
+        ]
+        rows.sort(key=lambda r: r["count"], reverse=True)
+
+        panels.append({
+            "quarter": f"Q{quarter_number}",
+            "is_current": is_current,
+            "current_prefix": current_prefix if is_current else "",
+            "occurrences": total,
+            "still_possible": len(possible) if is_current else 0,
+            "rows": rows,
+        })
+
+    return panels
