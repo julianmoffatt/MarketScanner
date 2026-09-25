@@ -13,8 +13,8 @@ def build_features(timeframes):
             df["return"] = round(((df["Close"] / df["last_close"])-1)*100,1)
             df["return_next_day"] = round(((df["Close"] / df["next_close"])-1)*100,1)
             df["volatility"] = np.abs(1-(df["High"]/df["Low"]))*100
-            df["upper_wick"] = df["High"] - df[["Open", "Close"]].max(axis=1)
-            df["lower_wick"] = df[["Open", "Close"]].min(axis=1) - df["Low"]
+            df["upper_wick"] = (df["High"] - df[["Open", "Close"]].max(axis=1)) / df["Close"] * 100
+            df["lower_wick"] = (df[["Open", "Close"]].min(axis=1) - df["Low"]) / df["Close"] * 100
             for i, ema in enumerate(ema_name):
                 df[ema] = df["Close"].ewm(span=ema_number[i], adjust=False).mean()
                 df["extension_"+ema] = ((df["Close"] - df[ema]) / df[ema])*100
