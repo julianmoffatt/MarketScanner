@@ -43,7 +43,7 @@ function ordinal(n) {
 // por EMA), el titulo muestra ambos: "EMA10 · DAILY (Absorption)". Cuando no
 // trae ninguno de los dos (ej. RSI, solo timeframe), el timeframe queda solo.
 // El percentil (si el panel lo trae) se agrega siempre al final.
-function panelTitle(panel) {
+function panelTitle(panel, showPercentile = true) {
   const parts = [];
   if (panel.ema_period !== undefined) {
     parts.push(`EMA${panel.ema_period}`);
@@ -56,13 +56,13 @@ function panelTitle(panel) {
   if (panel.ema_period !== undefined && panel.type !== undefined) {
     title += ` (${panel.type})`;
   }
-  if (panel.percentile !== undefined) {
+  if (showPercentile && panel.percentile !== undefined) {
     title += ` [Percentile: ${ordinal(panel.percentile)}]`;
   }
   return title;
 }
 
-function Panel({ panel, yField, currentField, p5Field, p95Field, valueSuffix = "", currentGuideline = false, panelFooter }) {
+function Panel({ panel, yField, currentField, p5Field, p95Field, valueSuffix = "", currentGuideline = false, panelFooter, footerLayout = "column", showPercentile = true }) {
   const theme = getChartTheme();
   const rows = panel.rows;
   const currentValue = currentField ? panel[currentField] : undefined;
@@ -170,38 +170,51 @@ function Panel({ panel, yField, currentField, p5Field, p95Field, valueSuffix = "
   const yPad = (yMax - yMin) * 0.05 || Math.abs(yMax) * 0.05 || 1;
   const yRange = [yMin - yPad, yMax + yPad];
 
+  const chart = (
+    <Plot
+      data={traces}
+      layout={{
+        title: {
+          text: panelTitle(panel, showPercentile),
+          font: { color: theme.axisText, size: 13 },
+        },
+        showlegend: false,
+        paper_bgcolor: "transparent",
+        plot_bgcolor: "transparent",
+        font: { color: theme.text, size: 10 },
+        xaxis: { color: theme.text, gridcolor: theme.grid, zerolinecolor: theme.grid },
+        yaxis: {
+          color: theme.text,
+          gridcolor: theme.grid,
+          zerolinecolor: theme.grid,
+          range: yRange,
+          autorange: false,
+        },
+        shapes,
+        annotations,
+        margin: { t: 36, b: 28, l: 40, r: 72 },
+        autosize: true,
+      }}
+      config={{ displayModeBar: false, responsive: true }}
+      style={{ width: "100%", height: "100%" }}
+      useResizeHandler
+    />
+  );
+
+  // footerLayout="row": grafica a la izquierda, panelFooter a la derecha
+  // (ej. Deviation Trend con sus rankings) en vez de apilado debajo (ej. RSI).
+  if (footerLayout === "row") {
+    return (
+      <div className="flex h-full min-h-[260px] flex-row gap-2 rounded-lg border border-border bg-card p-2">
+        <div className="h-full flex-[3]">{chart}</div>
+        {panelFooter && <div className="h-full flex-[2]">{panelFooter(panel)}</div>}
+      </div>
+    );
+  }
+
   return (
     <div className="flex h-full min-h-[220px] flex-col rounded-lg border border-border bg-card p-2">
-      <div className="min-h-[180px] flex-1">
-        <Plot
-          data={traces}
-          layout={{
-            title: {
-              text: panelTitle(panel),
-              font: { color: theme.axisText, size: 13 },
-            },
-            showlegend: false,
-            paper_bgcolor: "transparent",
-            plot_bgcolor: "transparent",
-            font: { color: theme.text, size: 10 },
-            xaxis: { color: theme.text, gridcolor: theme.grid, zerolinecolor: theme.grid },
-            yaxis: {
-              color: theme.text,
-              gridcolor: theme.grid,
-              zerolinecolor: theme.grid,
-              range: yRange,
-              autorange: false,
-            },
-            shapes,
-            annotations,
-            margin: { t: 36, b: 28, l: 40, r: 72 },
-            autosize: true,
-          }}
-          config={{ displayModeBar: false, responsive: true }}
-          style={{ width: "100%", height: "100%" }}
-          useResizeHandler
-        />
-      </div>
+      <div className="min-h-[180px] flex-1">{chart}</div>
       {panelFooter && panelFooter(panel)}
     </div>
   );
@@ -225,6 +238,8 @@ function PanelGrid({
   groupBy = defaultGroupKey,
   currentGuideline = false,
   panelFooter,
+  footerLayout = "column",
+  showPercentile = true,
 }) {
   const rows = groupPanels(panels, groupBy);
   const gridStyle = columnsPerRow
@@ -246,6 +261,8 @@ function PanelGrid({
               valueSuffix={valueSuffix}
               currentGuideline={currentGuideline}
               panelFooter={panelFooter}
+              footerLayout={footerLayout}
+              showPercentile={showPercentile}
             />
           ))}
         </div>
