@@ -182,3 +182,9 @@ cython_debug/
 
 # Codigo legacy archivado, no forma parte del proyecto actual
 backend/src/market_platform/analysis/_legacy_statistics_calculation/
+
+# Node dependencies (nunca deberian versionarse, se regeneran con npm install)
+node_modules/
+
+# Datos descargados/procesados por el pipeline -- se regeneran solos, no son codigo
+backend/data/
