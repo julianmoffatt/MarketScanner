@@ -1,6 +1,7 @@
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import RootLayout from "./layouts/RootLayout";
 import AnalyticsLayout from "./layouts/AnalyticsLayout";
+import MLLayout from "./layouts/MLLayout";
 import MeanReversionDistance from "./features/analytics/pages/MeanReversionDistance";
 import MeanReversionTimeAway from "./features/analytics/pages/MeanReversionTimeAway";
 import DeviationCandles from "./features/analytics/pages/DeviationCandles";
@@ -9,7 +10,8 @@ import StrikesCandles from "./features/analytics/pages/StrikesCandles";
 import TrendDuration from "./features/analytics/pages/TrendDuration";
 import Rsi from "./features/analytics/pages/Rsi";
 import QuarterPatterns from "./features/analytics/pages/QuarterPatterns";
-import MLHome from "./features/ml/pages/MLHome";
+import MLTraining from "./features/ml/pages/MLTraining";
+import MLPrediction from "./features/ml/pages/MLPrediction";
 
 const DEFAULT_TICKER = "BTC";
 
@@ -36,7 +38,15 @@ function App() {
             <Route path="quarter-patterns" element={<QuarterPatterns />} />
           </Route>
 
-          <Route path="ml" element={<MLHome />} />
+          <Route
+            path="ml"
+            element={<Navigate to={`/ml/${DEFAULT_TICKER}/training`} replace />}
+          />
+
+          <Route path="ml/:ticker" element={<MLLayout />}>
+            <Route path="training" element={<MLTraining />} />
+            <Route path="prediction" element={<MLPrediction />} />
+          </Route>
         </Route>
       </Routes>
     </BrowserRouter>

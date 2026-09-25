@@ -9,8 +9,10 @@ export function useTicker() {
   const location = useLocation();
 
   const setTicker = (newTicker) => {
-    const screen = location.pathname.split("/").pop();
-    navigate(`/analytics/${newTicker}/${screen}${location.search}`);
+    // El primer segmento (analytics/ml) no se hardcodea -- asi este hook
+    // sirve igual para /analytics/:ticker/... y /ml/:ticker/...
+    const [, section, , screen] = location.pathname.split("/");
+    navigate(`/${section}/${newTicker}/${screen}${location.search}`);
   };
 
   return { ticker, setTicker };
