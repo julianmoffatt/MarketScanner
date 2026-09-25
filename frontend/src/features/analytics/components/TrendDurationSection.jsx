@@ -25,7 +25,7 @@ function ArrowIcon({ up }) {
 function TrendDurationSection({ panel }) {
   const theme = getChartTheme();
   const isAbove = panel.type === "Above";
-  const color = isAbove ? theme.gold : theme.emaGray;
+  const color = isAbove ? theme.green : theme.red;
 
   const values = panel.rows.map((r) => r.num_days);
   const bins = histogram(values);
@@ -45,7 +45,7 @@ function TrendDurationSection({ panel }) {
     x: bins.map((b) => (b.x0 + b.x1) / 2),
     y: bins.map((b) => b.count),
     type: "bar",
-    marker: { color: bins.map((_, i) => (i === currentBinIdx ? theme.highlight : withAlpha(color, 0.5))) },
+    marker: { color: bins.map((_, i) => (i === currentBinIdx ? color : withAlpha(color, 0.4))) },
     hoverinfo: "y",
   };
 
@@ -81,7 +81,7 @@ function TrendDurationSection({ panel }) {
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
           <ArrowIcon up={isAbove} />
-          <span className="font-semibold uppercase tracking-wide text-foreground">{panel.type} Trend</span>
+          <span className="font-semibold uppercase tracking-wide text-foreground">{panel.type} EMA 10 </span>
         </div>
         <span className="text-sm text-muted-foreground">
           Current <span className="font-semibold text-foreground">{panel.current_value}</span>
