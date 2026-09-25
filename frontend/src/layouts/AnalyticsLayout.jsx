@@ -10,7 +10,7 @@ const TABS = [
   { path: "rsi", label: "RSI" },
   { path: "deviation-candles", label: "Deviation Candles" },
   { path: "deviation-ema-trend", label: "Deviation Trend (ema)" },
-  { path: "quarter-patterns?quarter=Q1", label: "Quarter Patterns" }
+  { path: "quarter-patterns", label: "Quarter Patterns" }
 ];
 
 function AnalyticsLayout() {
@@ -58,13 +58,13 @@ function AnalyticsLayout() {
               type="submit"
               className="rounded-md border border-gold px-3 py-1.5 text-sm font-medium text-gold transition-colors hover:bg-gold hover:text-background"
             >
-              Cambiar
+              Change
             </button>
           </form>
         </div>
       </div>
 
-      <div className="flex min-h-0 flex-1 flex-col px-6 py-6">
+      <div className="flex min-h-0 flex-1 flex-col px-6 py-3">
         <Outlet />
       </div>
     </div>

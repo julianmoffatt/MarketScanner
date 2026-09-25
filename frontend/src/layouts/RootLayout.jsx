@@ -1,4 +1,5 @@
 import { NavLink, Outlet } from "react-router-dom";
+import avatar from "../assets/avatar.png";
 
 const SECTIONS = [
   { to: "/analytics", label: "Statistics" },
@@ -9,7 +10,7 @@ function RootLayout() {
   return (
     <div className="flex min-h-screen flex-col bg-background text-foreground">
       <header className="border-b border-border">
-        <div className="relative mx-auto flex h-16 max-w-7xl items-center justify-between px-6">
+        <div className="relative flex h-16 items-center justify-between px-6">
           <div className="flex items-center gap-2 whitespace-nowrap">
             <span className="text-xl font-bold text-gold">/</span>
             <span className="text-sm font-semibold tracking-[0.25em] text-foreground">
@@ -36,7 +37,14 @@ function RootLayout() {
             ))}
           </nav>
 
-          <div className="h-8 w-8 rounded-full border border-border" />
+          <div className="flex items-center gap-3">
+            <span className="text-sm font-medium text-foreground">Julian Moffatt</span>
+            <img
+              src={avatar}
+              alt="Julian Moffatt"
+              className="h-8 w-8 shrink-0 rounded-full border border-border object-cover"
+            />
+          </div>
         </div>
       </header>
 
