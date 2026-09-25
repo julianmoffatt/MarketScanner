@@ -1,15 +1,47 @@
 import { useEffect, useState } from "react";
-import { useSearchParams } from "react-router-dom";
 import { useTicker } from "../hooks/useTicker";
 import { getQuarterPatterns } from "../api/analyticsApi";
 import ScreenHeader from "../components/ScreenHeader";
 import QuarterPatternCard from "../components/QuarterPatternCard";
 
+const QUARTER_ORDER = ["Q1", "Q2", "Q3", "Q4"];
+
+// Junta los 8 patrones de los 4 quarters en una sola distribucion general --
+// suma los counts (numeros absolutos, no los pct ya redondeados de cada
+// quarter) y recalcula el pct sobre el total combinado, para ver que
+// combinacion domina en el año completo en vez de por trimestre.
+function buildOverallPanel(panels) {
+  const totals = new Map();
+  let totalOccurrences = 0;
+
+  for (const panel of panels) {
+    totalOccurrences += panel.occurrences;
+    for (const row of panel.rows) {
+      totals.set(row.pattern, (totals.get(row.pattern) ?? 0) + row.count);
+    }
+  }
+
+  const rows = [...totals.entries()]
+    .map(([pattern, count]) => ({
+      pattern,
+      count,
+      pct: totalOccurrences ? (count / totalOccurrences) * 100 : 0,
+      is_possible: false,
+    }))
+    .sort((a, b) => b.count - a.count);
+
+  return {
+    quarter: "All Quarters",
+    is_current: false,
+    current_prefix: "",
+    occurrences: totalOccurrences,
+    still_possible: 0,
+    rows,
+  };
+}
+
 function QuarterPatterns() {
   const { ticker } = useTicker();
-  const [searchParams, setSearchParams] = useSearchParams();
-  const selectedQuarter = searchParams.get("quarter") ?? "Q1";
-
   const [data, setData] = useState(null);
   const [error, setError] = useState(null);
 
@@ -29,29 +61,25 @@ function QuarterPatterns() {
     };
   }, [ticker]);
 
-  const panels = data?.panels ?? [];
-  const panel = panels.find((p) => p.quarter === selectedQuarter);
+  const panels = [...(data?.panels ?? [])].sort(
+    (a, b) => QUARTER_ORDER.indexOf(a.quarter) - QUARTER_ORDER.indexOf(b.quarter)
+  );
 
   return (
     <div className="flex min-h-0 flex-1 flex-col gap-4">
       <ScreenHeader
         title="QUARTER COLOR COMBOS · MONTHS"
         subtitle="Which monthly color combination (green/red) is most common within each quarter?"
-      >
-        <select
-          value={selectedQuarter}
-          onChange={(e) => setSearchParams({ quarter: e.target.value })}
-          className="rounded-md border border-border bg-background px-3 py-1.5 text-sm text-foreground outline-none focus:border-gold"
-        >
-          {["Q1", "Q2", "Q3", "Q4"].map((q) => (
-            <option key={q} value={q}>
-              {q}
-            </option>
-          ))}
-        </select>
-      </ScreenHeader>
+      />
       {error && <p className="text-sm text-destructive">Error: {error}</p>}
-      {panel && <QuarterPatternCard panel={panel} />}
+      {panels.length > 0 && (
+        <div className="flex flex-col gap-4">
+          <QuarterPatternCard panel={buildOverallPanel(panels)} />
+          {panels.map((panel) => (
+            <QuarterPatternCard key={panel.quarter} panel={panel} />
+          ))}
+        </div>
+      )}
     </div>
   );
 }
