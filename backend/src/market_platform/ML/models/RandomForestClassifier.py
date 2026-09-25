@@ -13,10 +13,17 @@ class RandomForestModel(RandomForestClassifier):
     task_type = "classification"
 
     def __init__(self, n_estimators: int = 100, max_depth: int | None = None,
-                 random_state: int | None = None, class_weight=None, **kwargs):
+                 min_samples_split: int = 2, min_samples_leaf: int = 1,
+                 random_state: int | None = 42, class_weight=None, **kwargs):
+        # min_samples_split/leaf declarados explicitos (no dentro de **kwargs):
+        # sklearn arma get_params() introspeccionando la firma de __init__ y
+        # descarta el propio **kwargs, asi que cualquier parametro que solo
+        # viviera ahi era invisible para GridSearchCV -- nunca se ajustaba.
         super().__init__(
             n_estimators=n_estimators,
             max_depth=max_depth,
+            min_samples_split=min_samples_split,
+            min_samples_leaf=min_samples_leaf,
             random_state=random_state,
             class_weight=class_weight,
             **kwargs,

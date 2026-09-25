@@ -2,7 +2,7 @@
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
-from .routes import analytics
+from .routes import analytics, training, predictions
 
 app = FastAPI()
 
@@ -14,6 +14,8 @@ app.add_middleware(
 )
 
 app.include_router(analytics.router)
+app.include_router(training.router)
+app.include_router(predictions.router)
 
 @app.exception_handler(ValueError)
 def handle_value_error(request: Request, exc: ValueError):

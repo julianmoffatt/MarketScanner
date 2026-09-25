@@ -13,7 +13,7 @@ class XGBoostModel(XGBClassifier):
     task_type = "classification"
 
     def __init__(self, n_estimators: int = 100, max_depth: int = 6,
-                 learning_rate: float = 0.3, random_state: int | None = None, **kwargs):
+                 learning_rate: float = 0.3, random_state: int | None = 42, **kwargs):
         super().__init__(
             n_estimators=n_estimators,
             max_depth=max_depth,

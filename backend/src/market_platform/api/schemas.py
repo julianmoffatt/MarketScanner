@@ -1,5 +1,5 @@
 # api/schemas.py
-from typing import Generic, TypeVar
+from typing import Generic, Optional, TypeVar
 from pydantic import BaseModel
 
 RowT = TypeVar("RowT", bound=BaseModel)
@@ -93,6 +93,9 @@ class DeviationCandle_Response(TickerBaseResponse):
 class DeviationEmaTrend_Row(BaseModel):
     date: str
     deviation: float
+    forward_return_1: Optional[float] = None
+    forward_return_3: Optional[float] = None
+    forward_return_5: Optional[float] = None
 
 class DeviationEmaTrend_Response(TickerBaseResponse):
     panels: list[TimeframesEmaType_Percentiles_and_CurrentValue_Panel[DeviationEmaTrend_Row]]
@@ -167,5 +170,62 @@ class QuarterPattern_Panel(BaseModel):
 
 class QuarterPattern_Response(TickerBaseResponse):
     panels: list[QuarterPattern_Panel]
+
+
+# ---- Pantalla: Machine Learning - Training ----
+
+class ML_Metrics(BaseModel):
+    accuracy: float
+    precision: float
+    recall: float
+    f1: float
+
+class ML_FeatureImportance_Row(BaseModel):
+    feature: str
+    importance: float
+
+class ML_Calibration_Point(BaseModel):
+    prob_pred: float
+    prob_true: float
+
+class ML_Confusion_Matrix(BaseModel):
+    labels: list[str]
+    matrix: list[list[int]]
+
+class ML_Roc_Point(BaseModel):
+    fpr: float
+    tpr: float
+
+class ML_Roc(BaseModel):
+    auc: float
+    points: list[ML_Roc_Point]
+
+class ML_Training_Panel(BaseModel):
+    model_name: str
+    metrics: ML_Metrics
+    train_metrics: ML_Metrics
+    baseline_accuracy: float
+    confusion: ML_Confusion_Matrix
+    roc: ML_Roc
+    top_features: list[ML_FeatureImportance_Row]
+    calibration: list[ML_Calibration_Point]
+    n_train: int
+    n_test: int
+
+class ML_Training_Response(TickerBaseResponse):
+    panels: list[ML_Training_Panel]
+
+
+# ---- Pantalla: Machine Learning - Prediction ----
+
+class ML_Prediction_Panel(BaseModel):
+    model_name: str
+    predicted_type: str
+    probability_green: float
+    probability_red: float
+
+class ML_Prediction_Response(TickerBaseResponse):
+    as_of_date: str
+    panels: list[ML_Prediction_Panel]
 
 
