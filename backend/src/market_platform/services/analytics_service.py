@@ -1,6 +1,5 @@
 # services/analytics_service.py
 from ..analysis import rsi, mean_reversion_extension_to_mean, mean_reversion_time_away, deviations_candle, deviation_ema_trend, strikes_candles, strikes_trend, quarter_patterns
-from ..backtesting import backtesting
 from .. import pipeline
 
 def get_mean_reversion_extension_to_mean_lt(ticker: str) -> dict:
