@@ -49,10 +49,7 @@ def run_training_comparison(asset="sp500"):
 
 
 def run_prediction(asset="sp500"):
-    """Predice el tipo de vela de MAÑANA usando la fila mas reciente
-    (X_latest), que build_features_ML separa justo porque no tiene y_type
-    conocido todavia -- es la unica fila legitima para predecir en vivo sin
-    look-ahead."""
+    """Predice el tipo de vela de MAÑANA usando la fila mas reciente"""
     results, X_latest, as_of_date = _train_all_models(asset)
     predictions = []
     for result in results:

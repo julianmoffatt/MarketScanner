@@ -31,7 +31,21 @@ def _position_vs_period_open(df, freq):
     return (df["Close"] - period_open) / period_open * 100
 
 
+MIN_HISTORY_ROWS = 300  # por debajo de esto ni se intenta: no da ni para un
+                         # warm-up + split 80/20 + TimeSeriesSplit(5) razonable
+                         # (ej. una IPO reciente como RDDT, ~589 velas, ya se
+                         # queda corta para el SHORT_WINDOW=1000 fijo -- confirmado
+                         # con un IndexError real al pedir X_latest sobre un df vacio)
+
+
 def build_features_ML(df):
+    if len(df) < MIN_HISTORY_ROWS:
+        raise ValueError(
+            f"Solo hay {len(df)} velas de historico -- hacen falta al menos "
+            f"{MIN_HISTORY_ROWS} para entrenar un modelo con garantias "
+            f"(activo probablemente demasiado reciente, ej. una IPO reciente)."
+        )
+
     # Handling look ahead bias features
     df = df.drop('next_close', axis=1) 
     df = df.drop('return_next_day', axis=1)
@@ -46,8 +60,12 @@ def build_features_ML(df):
     df["rsi_percentile"] = [percentileofscore(df["rsi"].iloc[:i].dropna(), df["rsi"].iloc[i], kind="rank") for i in range(len(df))]
     df = df.drop('rsi', axis=1) 
     # - distance to mean
-    ema_extensions = ["extension_ema10", "extension_ema20", "extension_ema50", "extension_ema200"] 
-    SHORT_WINDOW = 1000
+    ema_extensions = ["extension_ema10", "extension_ema20", "extension_ema50", "extension_ema200"]
+    # Adaptativo: 1000 para tickers con historico largo (BTC, NVDA...), pero
+    # se reduce a un tercio del historico disponible para no dejar el dataset
+    # vacio en activos mas recientes -- ya paso MIN_HISTORY_ROWS arriba, asi
+    # que siempre queda margen para train/test despues del warm-up.
+    SHORT_WINDOW = min(1000, len(df) // 3)
     for ema_extension in ema_extensions:
         df["percentile_"+ema_extension] = [percentileofscore(df[ema_extension].iloc[:i], df[ema_extension].iloc[i], kind="rank") for i in range(len(df))]
         # corto / régimen reciente (rolling ventana fija)
