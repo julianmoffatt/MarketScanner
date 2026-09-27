@@ -13,7 +13,7 @@ import QuarterPatterns from "./features/analytics/pages/QuarterPatterns";
 import MLTraining from "./features/ml/pages/MLTraining";
 import MLPrediction from "./features/ml/pages/MLPrediction";
 
-const DEFAULT_TICKER = "BTC";
+const DEFAULT_TICKER = "sp500";
 
 function App() {
   return (

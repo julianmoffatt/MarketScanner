@@ -42,7 +42,7 @@ function RootLayout() {
             <img
               src={avatar}
               alt="Julian Moffatt"
-              className="h-8 w-8 shrink-0 rounded-full border border-border object-cover"
+              className="h-10 w-10 shrink-0 rounded-full border border-border object-cover"
             />
           </div>
         </div>
