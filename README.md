@@ -1,8 +1,8 @@
-# Market Scanner
+# Market Scanner | Advanced Market Statistics
 
-A full-stack quantitative market analytics platform: a Python/FastAPI backend that ingests and analyzes price data for stocks, crypto, and other assets, paired with a React frontend for exploring the results — plus a machine learning pipeline built with the same rigor a quant research process demands.
+A full-stack quantitative market analytics platform: a Python/FastAPI backend that ingests and analyzes price data for stocks, commodities, crypto, and other assets, paired with a React frontend for exploring the results — plus a machine learning pipeline following a rigorous, quant-research-oriented methodology.
 
-Built as a portfolio project to demonstrate end-to-end skills across data engineering, statistical analysis, and applied machine learning.
+Originally developed as a personal quantitative research project, now partially opened to the public as a portfolio project, with selected features and proprietary components restricted. The project demonstrates end-to-end skills across data engineering, statistical analysis, and applied machine learning.
 
 ## What it does
 
@@ -21,27 +21,31 @@ Descriptive, historical analysis of price behavior for any ticker:
 
 ### Machine Learning screens
 
-An ML pipeline predicting next-day candle direction (Green/Red), with results reported transparently:
+An ML pipeline predicting next-week candle direction (Green/Red) on weekly candles, with results reported transparently:
 
 - Random Forest, XGBoost, and Logistic Regression trained and compared side by side
-- Causal, leakage-free feature engineering (expanding-window percentiles, running streaks, no look-ahead)
-- `TimeSeriesSplit` cross-validation (not naive K-Fold) over a regularized hyperparameter grid
+- Causal, leakage-free feature engineering: expanding-window percentiles, running streaks at multiple horizons (weekly, monthly, quarterly, yearly), distance to the prior year's high/low, EMA-extension and time-away-from-mean percentiles, and shared macro context (10-year/3-month Treasury yield percentiles and their spread) — all validated to carry no look-ahead
+- Fixed, shared hyperparameters across the whole ticker universe instead of a per-ticker grid search — chosen to regularize model complexity, reused everywhere to avoid overfitting the search itself and to keep training feasible across hundreds of tickers
+- Walk-forward evaluation (expanding-window, chronological folds) instead of a single train/test split
 - Per-model diagnostics: accuracy versus a trivial baseline, train-versus-test overfitting gap, confusion matrix, ROC/AUC, and a calibration (reliability) curve
-- A live "predict tomorrow" screen using the same trained pipeline
+- A live "predict next week" screen using the same trained pipeline
 
 ## Methodology
 
-The project does not claim to beat the market. Across three different model families (linear, bagging, boosting), the measured result is that next-day direction shows no discoverable edge in this feature set (AUC ≈ 0.5). This result is reported directly on screen rather than obscured behind a selectively chosen metric. The emphasis throughout is on methodology:
+This is the part of the project under the most active iteration. The feature set, model configuration, and evaluation approach are still evolving as new candidates are tested and either kept or discarded:
 
-- Every ML feature is checked for look-ahead bias, validated empirically against the equivalent descriptive-analytics screen
+- Every ML feature is checked for look-ahead bias before being added, and validated empirically against the equivalent descriptive-analytics screen where one exists
 - Non-stationary raw price levels are deliberately excluded from the model — only percentage-based, percentile-based, and relative features are used
-- Cross-validation respects chronological order
-- Every result is compared against a trivial "always predict the majority class" baseline before being considered an improvement
-- Overfitting is actively diagnosed and reduced when found, rather than hidden behind a single headline accuracy figure
+- New features are evaluated through controlled ablation testing — same tickers, same model configuration, with and without the candidate feature — across a representative multi-asset universe (indices, commodities, forex) before being adopted
+- Hyperparameters are fixed and shared across the ticker universe rather than searched per ticker, and are themselves periodically re-validated the same way
+- Evaluation uses walk-forward validation rather than a single train/test split: each fold trains on all history up to that point and is scored only on the following, unseen period, with an initial anchor window ensuring every fold has enough history behind it before being evaluated at all
+- The model used for live predictions is retrained on the full available history once the walk-forward evaluation is complete — the evaluation and the deployed model are deliberately not the same fit
+- Every result is compared against a trivial "always predict the majority class" baseline before any apparent improvement is considered
+- Overfitting is actively diagnosed (train-versus-test gap) and reduced when found
 
 ## Tech stack
 
-**Backend** — Python 3.11, FastAPI, pandas, scikit-learn, XGBoost, yfinance, Pydantic
+**Backend** — Python 3.11, FastAPI, pandas, scikit-learn, XGBoost, SciPy, yfinance, Pydantic
 
 **Frontend** — React 19, Vite, React Router, Tailwind CSS 4, shadcn/ui, Plotly.js
 
@@ -56,8 +60,8 @@ yfinance ──▶ ingestion / preprocessing ──▶ build_features.py (EMAs, 
         (one module per Statistics screen)                    (causal, non-look-ahead features)
                           │                                                     │
                           ▼                                                     ▼
-             FastAPI routes + Pydantic schemas              sklearn Pipeline + GridSearchCV
-                          │                                  (TimeSeriesSplit, 3 models)
+             FastAPI routes + Pydantic schemas              sklearn Pipeline, walk-forward,
+                          │                                  fixed hyperparameters (3 models)
                           ▼                                                     │
                  React — Statistics tab                    React — Machine Learning tab  ◀──┘
 ```
@@ -66,30 +70,8 @@ yfinance ──▶ ingestion / preprocessing ──▶ build_features.py (EMAs, 
 
 A few implementation decisions worth calling out beyond the diagram above:
 
-- **Two layers of caching, for two different reasons.** `pipeline.processedTimeframes()` caches parsed OHLCV data per ticker so repeat requests do not re-read CSVs from disk on every call. Separately, the ML pipeline caches the trained models per ticker — training three models with a hyperparameter search can take from a few seconds up to a couple of minutes on tickers with long history, and the Training and Prediction screens share that cache rather than training twice for the same ticker.
-- **A caching race condition, identified and resolved.** React's StrictMode double-invokes effects during development; combined with the ML cache, two near-simultaneous requests for a new ticker could both miss the cache and start training in parallel, at one point measured at over 8,000 CPU-seconds consumed within minutes of wall-clock time. The fix is a per-ticker lock: a second concurrent request waits for the first to finish and reuses its result instead of repeating the work.
-- **Request cancellation rather than response filtering.** The frontend uses `AbortController` on ticker or screen changes instead of a `cancelled` boolean flag, so the underlying fetch is aborted rather than simply disregarded on arrival — relevant when a request can trigger a multi-minute training run on the backend.
-- **A model registry instead of hardcoded model logic.** Adding Logistic Regression as a third model required no changes to the shared training pipeline (`GridSearchCV`, `TimeSeriesSplit`, confusion matrix, ROC, calibration curve). Each model self-registers via a decorator, and the pipeline introspects `model.get_params()` at runtime to determine which hyperparameters and preprocessing steps apply to it.
-- **Adaptive handling of limited history instead of a fixed constant.** The warm-up window the ML features require scales down for tickers with shorter histories rather than assuming several years of data are always available, with an explicit floor below which the API returns a clear error instead of training on insufficient data.
-- **State lives in the URL, not in component state.** Ticker, analysis mode, and quarter selection are URL or query parameters rather than local `useState`, so every screen is bookmarkable and survives a refresh.
-- **One generic component renders most of the Statistics tab.** `PanelGrid` powers seven of the eight Statistics screens through configuration (grouping, column count, an optional per-panel footer render prop) instead of each screen reimplementing its own chart grid.
-
-## Getting started
-
-Requires **Python 3.11** and **Node.js**.
-
-```bash
-git clone https://github.com/julianmoffatt/MarketScanner.git
-cd MarketScanner
-pip install -r backend/requirements.txt
-npm install
-npm install --prefix frontend
-npm run dev
-```
-
-`npm run dev` starts the FastAPI backend (`localhost:8000`) and the Vite frontend (`localhost:5173`) together. Open `http://localhost:5173`.
-
-> On macOS/Linux, replace the Windows-specific `py -3.11` inside `package.json`'s `dev` script with `python3.11` if needed.
+- **Two layers of caching, for two different reasons.** `pipeline.processedTimeframes()` caches parsed OHLCV data per ticker so repeat requests do not re-read CSVs from disk on every call. Separately, the ML pipeline caches the trained models per ticker — walk-forward means several fits per model instead of one, so training three models can take a few seconds to a bit longer on tickers with long history, and the Training and Prediction screens share that cache rather than training twice for the same ticker.
+- **A model registry instead of hardcoded model logic.** Adding Logistic Regression as a third model required no changes to the shared training pipeline (train/test split, confusion matrix, ROC, calibration curve). Each model self-registers via a decorator, and the pipeline introspects `model.get_params()` at runtime to determine which hyperparameters and preprocessing steps apply to it.
 
 ## Project structure
 
@@ -109,8 +91,17 @@ frontend/
     layouts/               # shared nav/header
 ```
 
-## Known limitations
+## Getting started
 
-- Single chronological train/test split per ticker — no multi-window walk-forward validation yet
-- No formal statistical significance testing between models
-- Tickers with fewer than 300 daily candles of history (for example, a stock that IPO'd recently, such as `CRCL` at 288 days) are rejected up front with a clear error rather than being trained on. The warm-up window the ML features require (`SHORT_WINDOW`) scales down for shorter histories, but a floor exists below which a meaningful train/test split is not possible
+Requires **Python 3.11** and **Node.js**.
+
+```bash
+git clone https://github.com/julianmoffatt/MarketScanner.git
+cd MarketScanner
+pip install -r backend/requirements.txt
+npm install
+npm install --prefix frontend
+npm run dev
+```
+
+`npm run dev` starts the FastAPI backend (`localhost:8000`) and the Vite frontend (`localhost:5173`) together. Open `http://localhost:5173`.
