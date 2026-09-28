@@ -44,7 +44,7 @@ function TimeAwaySummary({ panels, theme }) {
     <div className="rounded-lg border border-border bg-card p-4">
       <table className="w-full text-sm">
         <thead>
-          <tr className="text-left text-xs uppercase tracking-wide text-muted-foreground">
+          <tr className="text-left text-xs uppercase tracking-wide text-gold">
             <th className="whitespace-nowrap pb-3 pr-4 font-medium">EMA</th>
             <th className="whitespace-nowrap px-4 pb-3 text-center font-medium">
               Current
@@ -55,6 +55,7 @@ function TimeAwaySummary({ panels, theme }) {
               <div className="text-[10px] normal-case text-muted-foreground/70">(candles)</div>
             </th>
             <th className="pb-3 pl-4 font-medium">Distribution</th>
+            <th className="whitespace-nowrap pb-3 pl-6 text-right font-medium">P95</th>
             <th className="whitespace-nowrap pb-3 pl-6 text-right font-medium">Max</th>
             <th className="whitespace-nowrap pb-3 pl-6 text-right font-medium">
               Percentile
@@ -84,7 +85,11 @@ function TimeAwaySummary({ panels, theme }) {
                 </td>
                 <td className="whitespace-nowrap py-3 pl-6 text-right">
                   <div className="text-lg font-bold text-foreground">{panel.p95.toFixed(0)}</div>
-                  <div className="text-[10px] uppercase tracking-wide text-muted-foreground">Max</div>
+                  <div className="text-[10px] uppercase tracking-wide text-gold">P95</div>
+                </td>
+                <td className="whitespace-nowrap py-3 pl-6 text-right">
+                  <div className="text-lg font-bold text-foreground">{panel.max.toFixed(0)}</div>
+                  <div className="text-[10px] uppercase tracking-wide text-gold">Max</div>
                 </td>
                 <td className="whitespace-nowrap py-3 pl-6 text-right font-semibold" style={{ color }}>
                   {panel.percentile.toFixed(0)}%

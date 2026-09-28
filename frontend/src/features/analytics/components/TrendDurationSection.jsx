@@ -54,13 +54,16 @@ function TrendDurationSection({ panel }) {
   if (panel.is_current) {
     const currentX = (bins[currentBinIdx].x0 + bins[currentBinIdx].x1) / 2;
     shapes.push({
+      // y1 en coordenadas de dato (hasta la barra mas alta), no "paper" --
+      // asi la linea termina justo debajo de la etiqueta "Now" en vez de
+      // seguir hasta arriba del todo y atravesar el texto.
       type: "line",
       xref: "x",
       x0: currentX,
       x1: currentX,
-      yref: "paper",
+      yref: "y",
       y0: 0,
-      y1: 1,
+      y1: maxCount,
       line: { color: theme.highlight, width: 1.5, dash: "dot" },
     });
     annotations.push({
@@ -69,7 +72,7 @@ function TrendDurationSection({ panel }) {
       yref: "y",
       y: maxCount,
       yanchor: "bottom",
-      yshift: 6,
+      yshift: 10,
       text: `Now<br>${panel.current_value}`,
       showarrow: false,
       font: { color: theme.highlight, size: 11 },

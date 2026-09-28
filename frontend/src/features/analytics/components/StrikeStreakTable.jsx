@@ -41,13 +41,13 @@ function StrikeStreakTable({ panel }) {
               <tr
                 key={row.length}
                 className="border-t border-border"
-                style={isCurrentRow ? { background: "rgba(250, 204, 21, 0.22)" } : undefined}
+                style={isCurrentRow ? { background: "rgba(250, 204, 21, 0.12)" } : undefined}
               >
                 <td className="py-1 font-medium text-foreground">
                   {row.length}
                   {isCurrentRow ? " ←" : ""}
                 </td>
-                <td className="py-1 text-muted-foreground">{row.count}</td>
+                <td className="py-1 text-foreground">{row.count}</td>
                 <td className="py-1 font-semibold" style={{ color }}>
                   {formatPct(row.pct)}
                 </td>

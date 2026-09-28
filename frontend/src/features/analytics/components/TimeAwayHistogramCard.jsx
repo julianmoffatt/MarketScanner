@@ -15,7 +15,17 @@ function TimeAwayHistogramCard({ panel, timeframe, theme }) {
   const color = getEmaColor(panel.ema_period, theme);
   const values = panel.rows.map((r) => r.time_away);
   const bins = histogram(values);
-  const maxCount = Math.max(...bins.map((b) => b.count));
+  const counts = bins.map((b) => b.count);
+  const maxCount = Math.max(...counts);
+  const minPositiveCount = Math.min(...counts.filter((c) => c > 0));
+
+  // Rango del eje log fijado a mano en vez de autorange: con muchos bins y
+  // muchos ceros (EMA50/200, con colas largas de duraciones raras), el
+  // autorange de Plotly para ejes log calcula mal el rango (se sale a
+  // valores absurdos tipo [-12, 235] en vez de exponentes de base 10) --
+  // fijarlo explicitamente evita el bug.
+  const logPad = 0.15;
+  const yAxisRange = [Math.log10(minPositiveCount) - logPad, Math.log10(maxCount) + logPad];
 
   // Intervalo semiabierto [x0, x1) -- con <= en ambos extremos, un valor que
   // cae justo en el borde entre dos bins (ej. value=6 con bins [5,6) y
@@ -83,7 +93,14 @@ function TimeAwayHistogramCard({ panel, timeframe, theme }) {
           plot_bgcolor: "transparent",
           font: { color: theme.text, size: 10 },
           xaxis: { color: theme.text, gridcolor: theme.grid, zerolinecolor: theme.grid, fixedrange: true },
-          yaxis: { visible: false, fixedrange: true },
+          // Log en vez de lineal: la distribucion de time_away esta muy
+          // sesgada (muchas rachas cortas, pocas largas), asi que en lineal
+          // las barras a partir de 1-3 dias quedaban casi invisibles junto
+          // al bin dominante. En log, la cola larga usa el alto completo del
+          // chart en vez de aplastarse contra el eje. Rango fijo (ver
+          // yAxisRange arriba) en vez de autorange, que se rompe en paneles
+          // con muchos bins/ceros.
+          yaxis: { visible: false, fixedrange: true, type: "log", range: yAxisRange, autorange: false },
           margin: { t: 26, b: 24, l: 4, r: 4 },
           bargap: 0.15,
           autosize: true,

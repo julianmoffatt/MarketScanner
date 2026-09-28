@@ -34,7 +34,7 @@ function DeviationCandles() {
         subtitle="Maximum adverse excursion of green/red candles · Current vs. historical distribution"
       />
       {error && <p className="text-sm text-destructive">Error: {error}</p>}
-      {panels.length > 0 && <PanelGrid panels={panels} yField="deviation" valueSuffix="%" />}
+      {panels.length > 0 && <PanelGrid panels={panels} yField="deviation" valueSuffix="%" currentGuideline />}
     </div>
   );
 }

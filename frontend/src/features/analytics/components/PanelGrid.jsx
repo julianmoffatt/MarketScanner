@@ -62,12 +62,19 @@ function panelTitle(panel, showPercentile = true) {
   return title;
 }
 
-function Panel({ panel, yField, currentField, p5Field, p95Field, valueSuffix = "", currentGuideline = false, panelFooter, footerLayout = "column", showPercentile = true }) {
+function Panel({ panel, yField, currentField, p5Field, p95Field, valueSuffix = "", currentGuideline = false, currentColor, currentTextColor, dataColor, panelFooter, footerLayout = "column", showPercentile = true }) {
   const theme = getChartTheme();
   const rows = panel.rows;
   const currentValue = currentField ? panel[currentField] : undefined;
   const hasCurrent = currentValue !== undefined && rows.length > 0;
-  const color = markerColor(panel, theme);
+  const color = dataColor ?? markerColor(panel, theme);
+  // Color del punto actual y su linea guia -- naranja por defecto (RSI,
+  // etc.), pero configurable por pantalla (Distance from Mean pide azul
+  // oscuro, mas legible contra los puntos de dispersion en azul claro).
+  const highlightColor = currentColor ?? theme.highlight;
+  // La etiqueta de texto puede llevar un color distinto al de la linea/punto
+  // (ej. texto blanco con linea/punto azul, para mas contraste).
+  const labelColor = currentTextColor ?? highlightColor;
 
   const traces = [
     {
@@ -98,7 +105,7 @@ function Panel({ panel, yField, currentField, p5Field, p95Field, valueSuffix = "
         yref: "y",
         y0: currentValue,
         y1: currentValue,
-        line: { color: theme.highlight, width: 1, dash: "2px,3px" },
+        line: { color: highlightColor, width: 2.5, dash: "4px,2px" },
         layer: "above",
       });
     }
@@ -108,7 +115,7 @@ function Panel({ panel, yField, currentField, p5Field, p95Field, valueSuffix = "
       y: [currentValue],
       type: "scatter",
       mode: "markers",
-      marker: { color: theme.highlight, size: 11, line: { color: theme.paper, width: 1.5 } },
+      marker: { color: highlightColor, size: 11, line: { color: theme.paper, width: 1.5 } },
       hoverinfo: "y",
       cliponaxis: false,
     });
@@ -124,7 +131,7 @@ function Panel({ panel, yField, currentField, p5Field, p95Field, valueSuffix = "
       yanchor: "middle",
       text: `${currentValue.toFixed(1)}${valueSuffix}`,
       showarrow: false,
-      font: { color: theme.highlight, size: 11 },
+      font: { color: labelColor, size: 11 },
     });
   }
 
@@ -237,6 +244,9 @@ function PanelGrid({
   columnsPerRow,
   groupBy = defaultGroupKey,
   currentGuideline = false,
+  currentColor,
+  currentTextColor,
+  dataColor,
   panelFooter,
   footerLayout = "column",
   showPercentile = true,
@@ -260,6 +270,9 @@ function PanelGrid({
               p95Field={p95Field}
               valueSuffix={valueSuffix}
               currentGuideline={currentGuideline}
+              currentColor={currentColor}
+              currentTextColor={currentTextColor}
+              dataColor={dataColor}
               panelFooter={panelFooter}
               footerLayout={footerLayout}
               showPercentile={showPercentile}

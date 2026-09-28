@@ -8,6 +8,7 @@ import {
 } from "../api/analyticsApi";
 import ScreenHeader from "../components/ScreenHeader";
 import PanelGrid from "../components/PanelGrid";
+import { getChartTheme } from "@/lib/plotlyTheme";
 
 // El modo (lt/ht/macro) vive en la query string (?mode=) en vez de en la
 // ruta -- asi la seleccion es bookmarkeable/persiste al recargar, y las 3
@@ -77,7 +78,15 @@ function MeanReversionDistance() {
       </ScreenHeader>
       {error && <p className="text-sm text-destructive">Error: {error}</p>}
       {panels.length > 0 && (
-        <PanelGrid panels={panels} yField="extension_to_mean" valueSuffix="%" currentGuideline />
+        <PanelGrid
+          panels={panels}
+          yField="extension_to_mean"
+          valueSuffix="%"
+          currentGuideline
+          currentColor={getChartTheme().highlightLight}
+          currentTextColor="#ffffff"
+          dataColor={getChartTheme().accentDark}
+        />
       )}
     </div>
   );

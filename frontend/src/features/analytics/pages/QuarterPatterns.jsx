@@ -30,12 +30,21 @@ function buildOverallPanel(panels) {
     }))
     .sort((a, b) => b.count - a.count);
 
+  // is_current se queda en false a proposito -- eso es lo que mantiene el
+  // coloreado por patron (verde/rojo) en las barras en vez del dorado/gris
+  // de "posible/eliminado" de un trimestre concreto. Pero el trimestre
+  // actual SI existe siempre (uno de los 4 paneles lo es), asi que "Current
+  // (partial)" y "Still possible" se copian de ese panel via
+  // has_current_quarter, independiente de is_current.
+  const current = panels.find((p) => p.is_current);
+
   return {
     quarter: "All Quarters",
     is_current: false,
-    current_prefix: "",
+    has_current_quarter: Boolean(current),
+    current_prefix: current?.current_prefix ?? "",
     occurrences: totalOccurrences,
-    still_possible: 0,
+    still_possible: current?.still_possible ?? 0,
     rows,
   };
 }

@@ -7,11 +7,22 @@ function withAlpha(color, alpha) {
   return color;
 }
 
+// Color por composicion del patron: todo del mismo color (GGG/RRR) en su
+// tono medio, y 2-contra-1 en el tono claro del color dominante -- asi la
+// barra comunica de un vistazo si el trimestre suele resolverse limpio o
+// mixto, en vez de un azul neutro que no dice nada sobre el patron en si.
+function patternColor(pattern, theme) {
+  const greens = pattern.split("").filter((c) => c === "G").length;
+  if (greens === 3) return theme.green;
+  if (greens === 0) return theme.red;
+  return greens === 2 ? theme.greenLight : theme.redLight;
+}
+
 // Dorado/gris solo tiene sentido cuando SI hay un trimestre en curso que
-// elimina patrones (is_current) -- fuera de eso "is_possible" es true para
-// los 8 sin distincion real, asi que se usa un color neutro para todos.
+// elimina patrones (is_current) -- fuera de eso se colorea por composicion
+// del propio patron (ver patternColor).
 function barColor(row, isCurrent, theme) {
-  if (!isCurrent) return theme.accent;
+  if (!isCurrent) return patternColor(row.pattern, theme);
   return row.is_possible ? theme.gold : withAlpha(theme.text, 0.35);
 }
 
@@ -53,6 +64,12 @@ function MiniRanking({ rows, isCurrent, theme }) {
 function QuarterPatternCard({ panel }) {
   const theme = getChartTheme();
   const rows = panel.rows;
+  // Independiente de is_current (que solo gobierna el coloreado de barras
+  // dorado/gris de un trimestre concreto): el panel "All Quarters" no es un
+  // trimestre en curso en si, pero el trimestre actual siempre existe entre
+  // los 4, asi que sus stats de "Current (partial)"/"Still possible" se
+  // muestran igual ahi via has_current_quarter.
+  const showCurrentInfo = panel.has_current_quarter ?? panel.is_current;
 
   const trace = {
     x: rows.map((r) => r.pattern),
@@ -119,7 +136,7 @@ function QuarterPatternCard({ panel }) {
         <div className="flex flex-col justify-between gap-4">
           <div className="grid grid-cols-2 gap-4">
             <StatBox label="Current (partial)">
-              {panel.is_current ? (
+              {showCurrentInfo ? (
                 <PatternDots pattern={panel.current_prefix} />
               ) : (
                 <span className="text-sm text-muted-foreground">—</span>
@@ -138,7 +155,7 @@ function QuarterPatternCard({ panel }) {
               <span className="ml-1 text-xs text-muted-foreground">quarters</span>
             </StatBox>
             <StatBox label="Still possible">
-              {panel.is_current ? (
+              {showCurrentInfo ? (
                 <span className="text-lg font-semibold text-foreground">
                   {panel.still_possible} <span className="text-xs text-muted-foreground">of 8</span>
                 </span>

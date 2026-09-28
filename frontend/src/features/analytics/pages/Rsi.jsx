@@ -4,6 +4,7 @@ import { getRsi } from "../api/analyticsApi";
 import ScreenHeader from "../components/ScreenHeader";
 import PanelGrid from "../components/PanelGrid";
 import RsiRankingTables from "../components/RsiRankingTables";
+import { getChartTheme } from "@/lib/plotlyTheme";
 
 function Rsi() {
   const { ticker } = useTicker();
@@ -40,6 +41,10 @@ function Rsi() {
           panels={panels}
           yField="rsi_value"
           groupBy={() => "all"}
+          currentGuideline
+          currentColor={getChartTheme().highlightLight}
+          currentTextColor="#ffffff"
+          dataColor={getChartTheme().accentDark}
           panelFooter={(panel) => <RsiRankingTables panel={panel} />}
         />
       )}

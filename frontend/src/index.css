@@ -40,9 +40,16 @@
   --sidebar-ring: oklch(0.708 0 0);
   --gold: oklch(0.78 0.14 80);
   --chart-blue: oklch(0.7 0.16 250);
+  --chart-blue-dark: oklch(0.58 0.18 258);
+  --chart-blue-light: oklch(0.82 0.1 250);
+  --chart-purple-light: oklch(0.75 0.14 300);
   --chart-orange: oklch(0.75 0.19 55);
-  --chart-green: oklch(0.72 0.19 145);
-  --chart-red: oklch(0.63 0.22 25);
+  --chart-orange-dark: oklch(0.58 0.2 45);
+  --chart-orange-light: oklch(0.85 0.13 60);
+  --chart-green: oklch(0.64 0.19 145);
+  --chart-green-light: oklch(0.77 0.12 145);
+  --chart-red: oklch(0.65 0.22 25);
+  --chart-red-light: oklch(0.75 0.14 25);
   --ema-gray: oklch(0.75 0 0);
   --ema-purple: oklch(0.62 0.19 300);
 }
@@ -81,9 +88,16 @@
   --sidebar-ring: oklch(0.78 0.14 80);
   --gold: oklch(0.78 0.14 80);
   --chart-blue: oklch(0.72 0.16 250);
+  --chart-blue-dark: oklch(0.58 0.18 258);
+  --chart-blue-light: oklch(0.82 0.1 250);
+  --chart-purple-light: oklch(0.75 0.14 300);
   --chart-orange: oklch(0.78 0.19 55);
-  --chart-green: oklch(0.75 0.19 145);
-  --chart-red: oklch(0.68 0.22 25);
+  --chart-orange-light: oklch(0.85 0.13 60);
+  --chart-orange-dark: oklch(0.58 0.2 45);
+  --chart-green: oklch(0.67 0.19 145);
+  --chart-green-light: oklch(0.77 0.12 145);
+  --chart-red: oklch(0.7 0.22 25);
+  --chart-red-light: oklch(0.75 0.14 25);
   --ema-gray: oklch(0.78 0 0);
   --ema-purple: oklch(0.65 0.19 300);
 }
@@ -124,9 +138,16 @@
   --color-background: var(--background);
   --color-gold: var(--gold);
   --color-chart-blue: var(--chart-blue);
+  --color-chart-blue-dark: var(--chart-blue-dark);
+  --color-chart-blue-light: var(--chart-blue-light);
+  --color-chart-purple-light: var(--chart-purple-light);
+  --color-chart-orange-dark: var(--chart-orange-dark);
+  --color-chart-orange-light: var(--chart-orange-light);
   --color-chart-orange: var(--chart-orange);
   --color-chart-green: var(--chart-green);
+  --color-chart-green-light: var(--chart-green-light);
   --color-chart-red: var(--chart-red);
+  --color-chart-red-light: var(--chart-red-light);
   --color-ema-gray: var(--ema-gray);
   --color-ema-purple: var(--ema-purple);
   --radius-sm: calc(var(--radius) * 0.6);
