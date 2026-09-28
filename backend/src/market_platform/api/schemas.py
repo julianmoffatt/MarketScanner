@@ -73,6 +73,7 @@ class MeanReversion_TimeAway_Row(BaseModel):
 class MeanReversion_TimeAway_Panel(TimeframesEma_Percentiles_and_CurrentValue_Panel[MeanReversion_TimeAway_Row]):
     median: float
     p25: float
+    max: float
 
 class MeanReversion_TimeAway_Response(TickerBaseResponse):
     panels: list[MeanReversion_TimeAway_Panel]

@@ -39,6 +39,7 @@ def _compute_panel(df, timeframe_label, ema_period, weight):
         "p05": subset["time_away"].quantile(0.05),
         "p25": subset["time_away"].quantile(0.25),
         "p95": subset["time_away"].quantile(0.95),
+        "max": subset["time_away"].max(),
         "rows": subset.to_dict(orient="records"),
     }
 
