@@ -35,13 +35,13 @@ function MLTraining() {
     <div className="flex min-h-0 flex-1 flex-col gap-4">
       <ScreenHeader
         title="MACHINE LEARNING · TRAINING"
-        subtitle="Prediccion del tipo de vela (Green/Red) del dia siguiente · Comparativa de modelos y sus features mas relevantes"
+        subtitle="Weekly candle type (Green/Red) prediction · Model comparison and their most relevant features"
       />
       {error && <p className="text-sm text-destructive">Error: {error}</p>}
       {!data && !error && (
         <p className="text-sm text-muted-foreground">
-          Entrenando modelos (GridSearchCV + TimeSeriesSplit)... puede tardar desde unos segundos hasta un par de
-          minutos en tickers con mucho historico. Los siguientes accesos a este ticker son instantaneos (cache).
+          Training models (fixed hyperparameters, no per-ticker search)... first load takes a few seconds.
+          Subsequent visits to this ticker are instant (cached).
         </p>
       )}
       {panels.length > 0 && (

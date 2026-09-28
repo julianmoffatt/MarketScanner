@@ -23,7 +23,7 @@ function PredictionCard({ panel }) {
       <div className="text-center text-3xl font-bold" style={{ color }}>
         {confidence.toFixed(1)}%
       </div>
-      <div className="text-center text-xs text-muted-foreground">confianza en su prediccion</div>
+      <div className="text-center text-xs text-muted-foreground">confidence in its prediction</div>
 
       <div className="mt-4 flex h-2 overflow-hidden rounded-full bg-muted">
         <div style={{ width: `${panel.probability_green * 100}%`, background: theme.green }} />

@@ -20,11 +20,11 @@ function ConfusionMatrixTable({ confusion }) {
         <tr>
           <th className="w-1/3"></th>
           <th className="pb-1 text-xs font-medium text-muted-foreground" colSpan={labels.length}>
-            Predicho
+            Predicted
           </th>
         </tr>
         <tr>
-          <th className="text-xs font-medium text-muted-foreground">Real</th>
+          <th className="text-xs font-medium text-muted-foreground">Actual</th>
           {labels.map((l) => (
             <th key={l} className="pb-1 text-xs font-medium text-muted-foreground">
               {l}

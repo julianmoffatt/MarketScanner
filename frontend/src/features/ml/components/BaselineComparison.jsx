@@ -11,19 +11,19 @@ function BaselineComparison({ modelAccuracy, baselineAccuracy }) {
   return (
     <div className="grid grid-cols-2 gap-4 text-center">
       <div>
-        <div className="text-xs text-muted-foreground">Modelo</div>
+        <div className="text-xs text-muted-foreground">Model</div>
         <div className="text-lg font-bold" style={{ color }}>
           {(modelAccuracy * 100).toFixed(1)}%
         </div>
       </div>
       <div>
-        <div className="text-xs text-muted-foreground">Baseline (clase mayoritaria)</div>
+        <div className="text-xs text-muted-foreground">Baseline (majority class)</div>
         <div className="text-lg font-bold text-muted-foreground">{(baselineAccuracy * 100).toFixed(1)}%</div>
       </div>
       <div className="col-span-2 text-xs" style={{ color }}>
         {beats
-          ? `+${((modelAccuracy - baselineAccuracy) * 100).toFixed(1)} pts sobre el baseline`
-          : "No supera al baseline trivial"}
+          ? `+${((modelAccuracy - baselineAccuracy) * 100).toFixed(1)} pts over baseline`
+          : "Does not beat the trivial baseline"}
       </div>
     </div>
   );

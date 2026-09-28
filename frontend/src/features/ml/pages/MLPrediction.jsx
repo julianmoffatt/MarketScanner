@@ -36,15 +36,15 @@ function MLPrediction() {
         title="MACHINE LEARNING · PREDICTION"
         subtitle={
           data
-            ? `Prediccion para la vela siguiente a ${data.as_of_date.slice(0, 10)}`
-            : "Prediccion en vivo del tipo de vela (Green/Red) del dia siguiente"
+            ? `Prediction for the week following ${data.as_of_date.slice(0, 10)}`
+            : "Live prediction of next week's candle type (Green/Red)"
         }
       />
       {error && <p className="text-sm text-destructive">Error: {error}</p>}
       {!data && !error && (
         <p className="text-sm text-muted-foreground">
-          Entrenando modelos (GridSearchCV + TimeSeriesSplit)... puede tardar desde unos segundos hasta un par de
-          minutos en tickers con mucho historico. Los siguientes accesos a este ticker son instantaneos (cache).
+          Training models (fixed hyperparameters, no per-ticker search)... first load takes a few seconds.
+          Subsequent visits to this ticker are instant (cached).
         </p>
       )}
       {panels.length > 0 && (
@@ -55,7 +55,7 @@ function MLPrediction() {
             ))}
           </div>
           <p className="text-xs text-muted-foreground">
-            Ilustrativo, no es una recomendacion de inversion.
+            Illustrative only, not investment advice.
           </p>
         </>
       )}

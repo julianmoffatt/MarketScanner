@@ -42,19 +42,19 @@ function ModelMetricsCard({ panel }) {
         <MetricStat label="F1" value={panel.metrics.f1} />
       </div>
 
-      <Section title="Baseline (¿le gana a predecir siempre la clase mayoritaria?)">
+      <Section title="Baseline (does it beat always predicting the majority class?)">
         <BaselineComparison modelAccuracy={panel.metrics.accuracy} baselineAccuracy={panel.baseline_accuracy} />
       </Section>
 
-      <Section title="Train vs Test (¿esta memorizando en vez de generalizar?)">
+      <Section title="Train vs Test (is it memorizing instead of generalizing?)">
         <TrainTestComparison trainMetrics={panel.train_metrics} testMetrics={panel.metrics} />
       </Section>
 
-      <Section title="Matriz de confusion (test set)">
+      <Section title="Confusion matrix (test set)">
         <ConfusionMatrixTable confusion={panel.confusion} />
       </Section>
 
-      <Section title="Curva ROC (capacidad de discriminar Green/Red)">
+      <Section title="ROC curve (ability to discriminate Green/Red)">
         <RocChart roc={panel.roc} />
       </Section>
 
@@ -62,7 +62,7 @@ function ModelMetricsCard({ panel }) {
         <FeatureImportanceChart features={panel.top_features} />
       </Section>
 
-      <Section title="Calibracion (probabilidad predicha vs. tasa real de acierto, por decil)">
+      <Section title="Calibration (predicted probability vs. actual hit rate, by decile)">
         <CalibrationChart calibration={panel.calibration} />
       </Section>
     </div>

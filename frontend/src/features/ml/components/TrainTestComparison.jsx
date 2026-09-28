@@ -20,7 +20,7 @@ function TrainTestComparison({ trainMetrics, testMetrics }) {
           <th className="pb-1 font-medium"></th>
           <th className="pb-1 font-medium text-right">Train</th>
           <th className="pb-1 font-medium text-right">Test</th>
-          <th className="pb-1 font-medium text-right">Brecha</th>
+          <th className="pb-1 font-medium text-right">Gap</th>
         </tr>
       </thead>
       <tbody>
