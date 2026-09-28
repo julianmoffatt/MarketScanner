@@ -20,11 +20,23 @@ def loadBaseTimeframe(symbol, timeframe_base, premarket_postmarket):
     return df
 
 
+# Pares de forex del universo (config.yaml) tal como los escribe/busca el
+# usuario en pantalla (sin el sufijo "=X" que exige yfinance) -- sin esta
+# traduccion, pedir p.ej. "EURGBP" a secas no es un ticker valido de Yahoo
+# Finance y la descarga no devuelve nada.
+FOREX_PAIRS = {
+    "EURUSD", "GBPUSD", "USDJPY", "AUDUSD", "USDCAD",
+    "USDCHF", "NZDUSD", "EURGBP", "EURJPY", "GBPJPY",
+}
+
+
 # se hace en ingest y no hace falta mas
 def name_sustitution(name):
     key = name.upper()
     if key == "SP500":
         return "^GSPC"
+    elif key == "NASDAQ":
+        return "^IXIC"
     elif key == "GOLD":
         return "GC=F"
     elif key == "SILVER":
@@ -39,6 +51,8 @@ def name_sustitution(name):
         return "BTC-USD"
     elif key == "ETH":
         return "ETH-USD"
+    elif key in FOREX_PAIRS:
+        return f"{key}=X"
     else:
         return name
 

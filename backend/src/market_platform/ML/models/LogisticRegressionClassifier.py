@@ -1,8 +1,8 @@
 """
 Baseline lineal: sirve para contestar "¿hacia falta tanta complejidad
 (arboles/boosting), o un modelo lineal simple daba lo mismo?" -- el mismo
-Pipeline generico (preprocesado + GridSearchCV + TimeSeriesSplit + matriz
-de confusion + ROC + calibracion) que ya usan RandomForest/XGBoost sirve
+Pipeline generico (preprocesado + hiperparametros fijos + matriz de
+confusion + ROC + calibracion) que ya usan RandomForest/XGBoost sirve
 tal cual, sin tocar nada de training_service.py.
 """
 

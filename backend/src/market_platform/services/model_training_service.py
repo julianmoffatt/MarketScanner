@@ -23,12 +23,22 @@ def _get_asset_lock(asset):
             _locks_by_asset[asset] = threading.Lock()
         return _locks_by_asset[asset]
 
+def _macro_weekly(symbol):
+    # ^TNX/^IRX se cachean solos via el propio lru_cache de
+    # pipeline.processedTimeframes -- es el mismo valor para cualquier
+    # activo esa semana, no hace falta cachearlo de nuevo aqui.
+    timeframes = pipeline.processedTimeframes(symbol, 0)
+    return timeframes[1].reset_index(names="date")
+
+
 @lru_cache(maxsize=32)
 def _train_all_models_cached(asset):
     timeframes = pipeline.processedTimeframes(asset, 0)  # daily, weekly, etc
-    daily = timeframes[0].reset_index(names="date")
-    X, y, X_latest = build_features_ML(daily)
-    as_of_date = daily["date"].iloc[-1]
+    weekly = timeframes[1].reset_index(names="date")
+    tnx_weekly = _macro_weekly("^TNX")
+    irx_weekly = _macro_weekly("^IRX")
+    X, y, X_latest = build_features_ML(weekly, tnx_weekly, irx_weekly)
+    as_of_date = weekly["date"].iloc[-1]
     results = [train_model(model_name, X, y) for model_name in CLASSIFIER_MODELS]
     return results, X_latest, as_of_date
 
@@ -49,7 +59,7 @@ def run_training_comparison(asset="sp500"):
 
 
 def run_prediction(asset="sp500"):
-    """Predice el tipo de vela de MAÑANA usando la fila mas reciente"""
+    """Predice el tipo de vela de la PROXIMA SEMANA usando la fila mas reciente"""
     results, X_latest, as_of_date = _train_all_models(asset)
     predictions = []
     for result in results:

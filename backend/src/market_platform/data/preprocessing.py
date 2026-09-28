@@ -112,11 +112,11 @@ def last_X_years(df, num_years):
     cutoff_date = last_date - pd.DateOffset(years=num_years)
     return df.loc[df.index >= cutoff_date].copy()
 
-    
-def preprocessing(df_base, t):
+
+def preprocessing(df_base, t, symbol=None):
     if isinstance(df_base.columns, pd.MultiIndex):
         df_base.columns = df_base.columns.get_level_values(0)
-        df_base.index = pd.to_datetime(df_base.index, utc=True)   
+        df_base.index = pd.to_datetime(df_base.index, utc=True)
 
     if t == 0:
         df_base.index = df_base.index.normalize()
@@ -125,13 +125,18 @@ def preprocessing(df_base, t):
         if df_base.index.tz is None:
             df_base.index = df_base.index.tz_localize('UTC')
         else:
-            df_base.index = df_base.index.tz_convert('UTC') 
-    timeframe_preprocessing = {0: lambda: preprocessing_highertimeframe(df_base), 1: lambda: preprocessing_lowertimeframe(df_base), 2: lambda: preprocessing_microtimeframe(df_base)}
+            df_base.index = df_base.index.tz_convert('UTC')
+    timeframe_preprocessing = {0: lambda: preprocessing_highertimeframe(df_base, symbol), 1: lambda: preprocessing_lowertimeframe(df_base), 2: lambda: preprocessing_microtimeframe(df_base)}
     return timeframe_preprocessing[t]()
 
+# Excepciones puntuales al corte generico de 40 años
+RELIABLE_HISTORY_YEARS_OVERRIDES = {
+    "SP500": 64,
+}
 
-def preprocessing_highertimeframe(df_base):
-    df_base = last_X_years(df_base, 40)
+def preprocessing_highertimeframe(df_base, symbol=None):
+    reliable_years = RELIABLE_HISTORY_YEARS_OVERRIDES.get(symbol, 40)
+    df_base = last_X_years(df_base, reliable_years)
     timeframes = []
     df_base = dataValidation(df_base)
     weekly = df_base.resample('W-MON', label='left', closed='left').agg({'Open': 'first', 'High': 'max', 'Low': 'min', 'Close': 'last', 'Volume': 'sum'})

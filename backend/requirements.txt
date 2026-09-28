@@ -4,6 +4,7 @@ yfinance
 fastapi
 uvicorn
 scikit-learn
+scipy
 xgboost
 joblib
 pyyaml

@@ -18,7 +18,7 @@ def createTimeframes_pipeline(symbol, t):
     #ingestion
     df_base = ingestion.loadBaseTimeframe(symbol, timeframe_base[t], premarket_postmarket[t])
     #preprocessing
-    timeframes_aux = preprocessing.preprocessing(df_base, t)
+    timeframes_aux = preprocessing.preprocessing(df_base, t, symbol=symbol)
     #build features
     timeframes = build_features.build_features(timeframes_aux)
     #save csv's

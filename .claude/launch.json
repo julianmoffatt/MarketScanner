@@ -4,8 +4,8 @@
     {
       "name": "market-scanner",
       "runtimeExecutable": "python",
-      "runtimeArgs": ["-m", "backend.main"],
-      "port": 8050
+      "runtimeArgs": ["-m", "uvicorn", "backend.src.market_platform.api.main:app", "--port", "8000", "--reload"],
+      "port": 8000
     },
     {
       "name": "frontend",
