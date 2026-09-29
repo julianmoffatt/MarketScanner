@@ -21,6 +21,12 @@ Descriptive, historical analysis of price behavior for any ticker:
 - **MAE (EMA Trend)** — Absorption vs. Rejection patterns around the EMA, with forward-return rankings (how price performed 1/3/5 periods after each occurrence)
 - **Quarter Patterns** — which monthly Green/Red color combination is most common within each quarter, and which are still statistically possible for the current quarter
 
+<img width="1917" height="857" alt="extension" src="https://github.com/user-attachments/assets/6858be69-919f-41e9-9d1b-e22547bdc01d" />
+<img width="1897" height="861" alt="MAE (trend)" src="https://github.com/user-attachments/assets/baf10f75-286d-4e1a-bf76-9fa03cae3413" />
+<img width="1917" height="861" alt="rsi" src="https://github.com/user-attachments/assets/179a613b-c7bd-48a2-adf8-0f60a56db22f" />
+<img width="1896" height="841" alt="quarter patterns" src="https://github.com/user-attachments/assets/9070c85c-2433-4ccc-ba9f-ffef1c1a93d5" />
+<img width="1896" height="860" alt="ML" src="https://github.com/user-attachments/assets/e6a9f409-5548-46db-81bb-94a6a5d18d50" />
+
 ### Machine Learning screens
 
 An ML pipeline predicting next-week candle direction (Green/Red) on weekly candles, with results reported transparently:
