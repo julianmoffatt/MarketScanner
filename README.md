@@ -1,6 +1,8 @@
 # Market Scanner | Advanced Market Statistics
 
-A full-stack quantitative market analytics platform: a Python/FastAPI backend that ingests and analyzes price data for stocks, commodities, crypto, and other assets, paired with a React frontend for exploring the results — plus a machine learning pipeline following a rigorous, quant-research-oriented methodology.
+Full-Stack Quantitative Market Analytics Platform — Developer & Researcher
+
+A Python/FastAPI + React platform that ingests and analyzes historical price data across any asset class, combining an advanced market-statistics engine (trend behavior, mean-reversion probability, maximum adverse excursion, streak analysis) with an end-to-end machine learning pipeline to support data-driven investment research.
 
 Originally developed as a personal quantitative research project, now partially opened to the public as a portfolio project, with selected features and proprietary components restricted. The project demonstrates end-to-end skills across data engineering, statistical analysis, and applied machine learning.
 
@@ -15,8 +17,8 @@ Descriptive, historical analysis of price behavior for any ticker:
 - **Trend Duration** — consecutive days spent above/below the EMA
 - **Strikes** — consecutive green/red candle streaks
 - **RSI** — historical distribution, percentile, and top/bottom RSI readings
-- **Deviation Candles** — Maximum Adverse Excursion (MAE) per candle: how far price moved against the eventual close before it happened (e.g., how far a green candle dipped below its open before recovering to close higher)
-- **Deviation Trend** — Absorption vs. Rejection patterns around the EMA, with forward-return rankings (how price performed 1/3/5 periods after each occurrence)
+- **MAE (Candles)** — Maximum Adverse Excursion (MAE) per candle: how far price moved against the eventual close before it happened (e.g., how far a green candle dipped below its open before recovering to close higher)
+- **MAE (EMA Trend)** — Absorption vs. Rejection patterns around the EMA, with forward-return rankings (how price performed 1/3/5 periods after each occurrence)
 - **Quarter Patterns** — which monthly Green/Red color combination is most common within each quarter, and which are still statistically possible for the current quarter
 
 ### Machine Learning screens
@@ -70,7 +72,7 @@ yfinance ──▶ ingestion / preprocessing ──▶ build_features.py (EMAs, 
 
 A few implementation decisions worth calling out beyond the diagram above:
 
-- **Two layers of caching, for two different reasons.** `pipeline.processedTimeframes()` caches parsed OHLCV data per ticker so repeat requests do not re-read CSVs from disk on every call. Separately, the ML pipeline caches the trained models per ticker — walk-forward means several fits per model instead of one, so training three models can take a few seconds to a bit longer on tickers with long history, and the Training and Prediction screens share that cache rather than training twice for the same ticker.
+- **Two layers of caching.** `pipeline.processedTimeframes()` caches parsed OHLCV data per ticker so repeat requests do not re-read CSVs from disk on every call. Separately, the ML pipeline caches the trained models per ticker — walk-forward means several fits per model instead of one, so training three models can take a few seconds to a bit longer on tickers with long history, and the Training and Prediction screens share that cache rather than training twice for the same ticker.
 - **A model registry instead of hardcoded model logic.** Adding Logistic Regression as a third model required no changes to the shared training pipeline (train/test split, confusion matrix, ROC, calibration curve). Each model self-registers via a decorator, and the pipeline introspects `model.get_params()` at runtime to determine which hyperparameters and preprocessing steps apply to it.
 
 ## Project structure
