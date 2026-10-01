@@ -1,39 +1,29 @@
 """
 Validacion de calidad para dataframes OHLCV crudos de precios de stocks.
-
-Se ejecuta ANTES de cualquier feature engineering (EMA, ATR, retornos como
-feature, etc.) -- opera solo sobre el dato crudo para decidir que esta mal,
-que es sospechoso, y que corresponde a un regimen distinto de liquidez.
-
-Espera un DataFrame indexado por fecha (datetime, ordenado), con columnas:
-    Open, High, Low, Close, Volume
+Se ejecuta ANTES de cualquier feature engineering
+Opera solo sobre el dato crudo para decidir que esta mal, que es sospechoso, y que corresponde a un regimen distinto de liquidez.
+Espera un DataFrame indexado por fecha (datetime, ordenado), con columnas: Open, High, Low, Close, Volume
 """
 
 import numpy as np
 import pandas as pd
-
 
 # ---------------------------------------------------------------------------
 # 1. Chequeos estructurales: precios/volumen imposibles en un mercado real
 # ---------------------------------------------------------------------------
 
 def check_basic_sanity(df: pd.DataFrame) -> pd.DataFrame:
-    """
-    Un dataframe de flags booleanos, una fila por cada vela del input,
-    marcando cada tipo de violacion. Todo lo que quede en True es un dato
-    que no puede existir en un mercado real -- casi siempre error de la
-    fuente, no un movimiento genuino de precio.
-    """
+    # Un dataframe de flags booleanos, una fila por cada vela del input, marcando cada tipo de violacion.
     flags = pd.DataFrame(index=df.index)
 
+    flags["has_nan"] = df[["Open", "High", "Low", "Close", "Volume"]].isna().any(axis=1)
     flags["neg_or_zero_price"] = (df[["Open", "High", "Low", "Close"]] <= 0).any(axis=1)
     flags["neg_volume"] = df["Volume"] < 0
     flags["high_lt_low"] = df["High"] < df["Low"]
     flags["close_outside_range"] = (df["Close"] > df["High"]) | (df["Close"] < df["Low"])
     flags["open_outside_range"] = (df["Open"] > df["High"]) | (df["Open"] < df["Low"])
-    flags["has_nan"] = df[["Open", "High", "Low", "Close", "Volume"]].isna().any(axis=1)
 
-    flags["any_violation"] = flags.drop(columns=["any_violation"], errors="ignore").any(axis=1)
+    flags["any_violation"] = flags.any(axis=1)
     return flags
 
 
@@ -47,14 +37,10 @@ def detect_price_spikes(
     revert_tolerance: float = 0.05,
 ) -> pd.DataFrame:
     """
-    Un bad tick clasico se ve asi: retorno de +80% en el dia s, seguido de
-    un retorno que deja el precio en el dia s+1 casi exactamente donde
-    estaba en s-1 -- como si el salto nunca hubiera ocurrido. Un movimiento
-    real casi nunca se revierte con esa precision al dia inmediato siguiente.
-
+    Un bad tick clasico se ve asi: retorno de +80% en el dia s, seguido de un retorno 
+    que deja el precio en el dia s+1 casi exactamente donde estaba en s-1.
     jump_threshold:   retorno absoluto minimo para considerar "salto"
-    revert_tolerance: cuan cerca debe quedar close(s+1) de close(s-1)
-                       para considerarlo una reversion completa
+    revert_tolerance: cuan cerca debe quedar close(s+1) de close(s-1) para considerarlo una reversion completa
     """
     close = df["Close"]
     ret = close.pct_change()  # ret[s] = close[s]/close[s-1] - 1
