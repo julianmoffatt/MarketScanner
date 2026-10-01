@@ -1,5 +1,7 @@
 # Market Scanner | Advanced Market Statistics
 
+![CI](https://github.com/julianmoffatt/MarketScanner/actions/workflows/ci.yml/badge.svg)
+
 Full-Stack Quantitative Market Analytics Platform — Developer & Researcher
 
 A Python/FastAPI + React platform that ingests and analyzes historical price data across any asset class, combining an advanced market-statistics engine (trend behavior, mean-reversion probability, maximum adverse excursion, streak analysis) with an end-to-end machine learning pipeline to support data-driven investment research.
