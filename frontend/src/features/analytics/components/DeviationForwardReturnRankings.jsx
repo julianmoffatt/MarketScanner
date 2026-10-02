@@ -1,23 +1,28 @@
 import { getChartTheme } from "@/lib/plotlyTheme";
 
-function ReturnCell({ value, theme }) {
-  if (value === null || value === undefined) return <td className="py-0.5 text-muted-foreground">—</td>;
+function ReturnCell({ value, theme, cellPad }) {
+  if (value === null || value === undefined) return <td className={`${cellPad} text-muted-foreground`}>—</td>;
   const color = value >= 0 ? theme.green : theme.red;
   return (
-    <td className="py-0.5 font-semibold" style={{ color }}>
+    <td className={`${cellPad} font-semibold`} style={{ color }}>
       {value > 0 ? "+" : ""}
       {value.toFixed(1)}%
     </td>
   );
 }
 
-function RankingTable({ title, rows, titleColor, theme }) {
+// compact: solo la usa la primera fila de la pantalla (ver DeviationEmaTrend)
+// para que las dos tablas de 10 filas quepan enteras sin scroll -- texto y
+// padding mas pequeños, mismo contenido (siguen siendo top 10, no se recorta
+// informacion).
+function RankingTable({ title, rows, titleColor, theme, compact }) {
+  const cellPad = compact ? "py-px" : "py-0.5";
   return (
-    <div className="flex-1 rounded-md border border-border bg-background/40 p-2">
-      <div className="mb-1 text-xs font-medium" style={{ color: titleColor }}>
+    <div className={`${compact ? "" : "flex-1"} rounded-md border border-border bg-background/40 p-2`}>
+      <div className={`${compact ? "mb-0.5 text-[10px]" : "mb-1 text-xs"} font-medium`} style={{ color: titleColor }}>
         {title}
       </div>
-      <table className="w-full text-xs">
+      <table className={`w-full ${compact ? "text-[10px]" : "text-xs"}`}>
         <thead>
           <tr className="text-left text-muted-foreground">
             <th className="pb-1 font-medium">#</th>
@@ -31,12 +36,12 @@ function RankingTable({ title, rows, titleColor, theme }) {
         <tbody>
           {rows.map((row, idx) => (
             <tr key={row.date} className="border-t border-border">
-              <td className="py-0.5 text-muted-foreground">{idx + 1}</td>
-              <td className="py-0.5 text-foreground">{row.date}</td>
-              <td className="py-0.5 text-muted-foreground">{row.deviation.toFixed(1)}%</td>
-              <ReturnCell value={row.forward_return_1} theme={theme} />
-              <ReturnCell value={row.forward_return_3} theme={theme} />
-              <ReturnCell value={row.forward_return_5} theme={theme} />
+              <td className={`${cellPad} text-muted-foreground`}>{idx + 1}</td>
+              <td className={`${cellPad} text-foreground`}>{row.date}</td>
+              <td className={`${cellPad} text-muted-foreground`}>{row.deviation.toFixed(1)}%</td>
+              <ReturnCell value={row.forward_return_1} theme={theme} cellPad={cellPad} />
+              <ReturnCell value={row.forward_return_3} theme={theme} cellPad={cellPad} />
+              <ReturnCell value={row.forward_return_5} theme={theme} cellPad={cellPad} />
             </tr>
           ))}
         </tbody>
@@ -53,7 +58,7 @@ function RankingTable({ title, rows, titleColor, theme }) {
 // negativo aunque su +5 sea el que lo mete en el top de "mejores".
 // Los eventos muy recientes (sin 5 velas de futuro todavia) llegan con
 // forward_return_5=null desde el backend y se excluyen del ranking.
-function DeviationForwardReturnRankings({ panel }) {
+function DeviationForwardReturnRankings({ panel, compact = false }) {
   const theme = getChartTheme();
   const withReturn = panel.rows.filter((r) => r.forward_return_5 !== null && r.forward_return_5 !== undefined);
   const sortedDesc = [...withReturn].sort((a, b) => b.forward_return_5 - a.forward_return_5);
@@ -63,9 +68,9 @@ function DeviationForwardReturnRankings({ panel }) {
   if (withReturn.length === 0) return null;
 
   return (
-    <div className="flex h-full flex-col gap-2">
-      <RankingTable title="Top 10 Best Return" rows={top10Best} titleColor={theme.green} theme={theme} />
-      <RankingTable title="Top 10 Worst Return" rows={top10Worst} titleColor={theme.red} theme={theme} />
+    <div className={`flex h-full flex-col ${compact ? "gap-1" : "gap-2"}`}>
+      <RankingTable title="Top 10 Best Return" rows={top10Best} titleColor={theme.green} theme={theme} compact={compact} />
+      <RankingTable title="Top 10 Worst Return" rows={top10Worst} titleColor={theme.red} theme={theme} compact={compact} />
     </div>
   );
 }

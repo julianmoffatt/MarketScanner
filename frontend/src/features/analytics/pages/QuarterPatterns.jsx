@@ -21,22 +21,24 @@ function buildOverallPanel(panels) {
     }
   }
 
+  // is_current se queda en false a proposito -- eso es lo que mantiene el
+  // coloreado por patron (verde/rojo) en las barras en vez del dorado/gris
+  // de "posible/eliminado" de un trimestre concreto. Pero el trimestre
+  // actual SI existe siempre (uno de los 4 paneles lo es), asi que "Current
+  // (partial)"/"Still possible" y que patrones siguen siendo "Possible" se
+  // copian de ese panel via has_current_quarter/possiblePatterns,
+  // independiente de is_current.
+  const current = panels.find((p) => p.is_current);
+  const possiblePatterns = new Set(current?.rows.filter((r) => r.is_possible).map((r) => r.pattern) ?? []);
+
   const rows = [...totals.entries()]
     .map(([pattern, count]) => ({
       pattern,
       count,
       pct: totalOccurrences ? (count / totalOccurrences) * 100 : 0,
-      is_possible: false,
+      is_possible: possiblePatterns.has(pattern),
     }))
     .sort((a, b) => b.count - a.count);
-
-  // is_current se queda en false a proposito -- eso es lo que mantiene el
-  // coloreado por patron (verde/rojo) en las barras en vez del dorado/gris
-  // de "posible/eliminado" de un trimestre concreto. Pero el trimestre
-  // actual SI existe siempre (uno de los 4 paneles lo es), asi que "Current
-  // (partial)" y "Still possible" se copian de ese panel via
-  // has_current_quarter, independiente de is_current.
-  const current = panels.find((p) => p.is_current);
 
   return {
     quarter: "All Quarters",

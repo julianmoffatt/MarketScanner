@@ -8,8 +8,8 @@ const TABS = [
   { path: "trend-duration", label: "Trend Duration" },
   { path: "strikes-candles", label: "Strikes" },
   { path: "rsi", label: "RSI" },
-  { path: "deviation-candles", label: "Deviation Candles" },
-  { path: "deviation-ema-trend", label: "Deviation Trend (ema)" },
+  { path: "deviation-candles", label: "MAE (Candles)" },
+  { path: "deviation-ema-trend", label: "MAE (EMA Trend)" },
   { path: "quarter-patterns", label: "Quarter Patterns" }
 ];
 

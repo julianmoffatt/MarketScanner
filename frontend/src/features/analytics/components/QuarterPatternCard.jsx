@@ -123,7 +123,7 @@ function QuarterPatternCard({ panel }) {
             {rows.map((row) => (
               <div key={row.pattern} className="flex flex-1 flex-col items-center gap-1">
                 <PatternDots pattern={row.pattern} />
-                {row.is_possible && panel.is_current && (
+                {row.is_possible && showCurrentInfo && (
                   <span className="text-[9px] font-semibold uppercase tracking-wide" style={{ color: theme.gold }}>
                     Possible
                   </span>

@@ -62,7 +62,7 @@ function panelTitle(panel, showPercentile = true) {
   return title;
 }
 
-function Panel({ panel, yField, currentField, p5Field, p95Field, valueSuffix = "", currentGuideline = false, currentColor, currentTextColor, dataColor, panelFooter, footerLayout = "column", showPercentile = true }) {
+function Panel({ panel, yField, currentField, p5Field, p95Field, valueSuffix = "", currentGuideline = false, currentColor, currentTextColor, dataColor, panelFooter, footerLayout = "column", showPercentile = true, compact = false }) {
   const theme = getChartTheme();
   const rows = panel.rows;
   const currentValue = currentField ? panel[currentField] : undefined;
@@ -210,11 +210,14 @@ function Panel({ panel, yField, currentField, p5Field, p95Field, valueSuffix = "
 
   // footerLayout="row": grafica a la izquierda, panelFooter a la derecha
   // (ej. Deviation Trend con sus rankings) en vez de apilado debajo (ej. RSI).
+  // compact: solo la primera fila de un screen lo pide (ver PanelGrid) para
+  // que quepa entera sin scroll -- el resto de filas se quedan en su tamaño
+  // normal, asi que esto NO es un ajuste global de min-h.
   if (footerLayout === "row") {
     return (
-      <div className="flex h-full min-h-[260px] flex-row gap-2 rounded-lg border border-border bg-card p-2">
-        <div className="h-full flex-[3]">{chart}</div>
-        {panelFooter && <div className="h-full flex-[2]">{panelFooter(panel)}</div>}
+      <div className={`flex h-full ${compact ? "min-h-[180px]" : "min-h-[260px]"} flex-row gap-2 rounded-lg border border-border bg-card p-2`}>
+        <div className="h-full min-w-0 flex-[3]">{chart}</div>
+        {panelFooter && <div className="h-full min-w-0 flex-[2]">{panelFooter(panel, compact)}</div>}
       </div>
     );
   }
@@ -250,6 +253,7 @@ function PanelGrid({
   panelFooter,
   footerLayout = "column",
   showPercentile = true,
+  compactFirstRow = false,
 }) {
   const rows = groupPanels(panels, groupBy);
   const gridStyle = columnsPerRow
@@ -258,8 +262,19 @@ function PanelGrid({
 
   return (
     <div className="flex min-h-0 flex-1 flex-col gap-4">
-      {rows.map(({ key, panels: rowPanels }) => (
-        <div key={key} className="grid flex-1 gap-4" style={gridStyle}>
+      {rows.map(({ key, panels: rowPanels }, rowIndex) => {
+        const isCompactRow = compactFirstRow && rowIndex === 0;
+        // Fila compacta: sin flex-1 (no se estira a llenar el espacio
+        // sobrante) y con un alto fijo -- Plotly (autosize + resize
+        // handler) encoge el chart a ese alto en vez de crecer sin limite,
+        // que es lo que antes inflaba tambien las tablas de al lado via
+        // h-full en cadena.
+        return (
+        <div
+          key={key}
+          className={isCompactRow ? "grid gap-4" : "grid flex-1 gap-4"}
+          style={isCompactRow ? { ...gridStyle, height: 500 } : gridStyle}
+        >
           {rowPanels.map((panel) => (
             <Panel
               key={`${panel.timeframe}-${panel.ema_period ?? ""}-${panel.type ?? ""}`}
@@ -275,11 +290,13 @@ function PanelGrid({
               dataColor={dataColor}
               panelFooter={panelFooter}
               footerLayout={footerLayout}
+              compact={compactFirstRow && rowIndex === 0}
               showPercentile={showPercentile}
             />
           ))}
         </div>
-      ))}
+        );
+      })}
     </div>
   );
 }

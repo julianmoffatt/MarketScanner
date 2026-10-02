@@ -83,7 +83,6 @@ function MeanReversionDistance() {
           yField="extension_to_mean"
           valueSuffix="%"
           currentGuideline
-          currentColor={getChartTheme().highlightLight}
           currentTextColor="#ffffff"
           dataColor={getChartTheme().accentDark}
         />

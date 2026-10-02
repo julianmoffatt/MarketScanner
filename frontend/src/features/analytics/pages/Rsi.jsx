@@ -42,7 +42,6 @@ function Rsi() {
           yField="rsi_value"
           groupBy={() => "all"}
           currentGuideline
-          currentColor={getChartTheme().highlightLight}
           currentTextColor="#ffffff"
           dataColor={getChartTheme().accentDark}
           panelFooter={(panel) => <RsiRankingTables panel={panel} />}
