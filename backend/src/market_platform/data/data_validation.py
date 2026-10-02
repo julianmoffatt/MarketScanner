@@ -23,6 +23,13 @@ def check_basic_sanity(df: pd.DataFrame) -> pd.DataFrame:
     flags["close_outside_range"] = (df["Close"] > df["High"]) | (df["Close"] < df["Low"])
     flags["open_outside_range"] = (df["Open"] > df["High"]) | (df["Open"] < df["Low"])
 
+    # atribucion por columna: que campo es el sospechoso (el que se anula e interpola)
+    flags["invalid_open"] = (df["Open"] <= 0) | (df["Open"] > df["High"]) | (df["Open"] < df["Low"])
+    flags["invalid_high"] = (df["High"] <= 0) | (df["High"] < df["Low"])
+    flags["invalid_low"] = (df["Low"] <= 0) | (df["High"] < df["Low"])
+    flags["invalid_close"] = (df["Close"] <= 0) | (df["Close"] > df["High"]) | (df["Close"] < df["Low"])
+    flags["invalid_volume"] = df["Volume"] < 0
+
     flags["any_violation"] = flags.any(axis=1)
     return flags
 
@@ -62,180 +69,131 @@ def detect_price_spikes(
 
 
 # ---------------------------------------------------------------------------
-# 3. Rachas de precio "congelado" -- sintoma directo de baja liquidez
-# ---------------------------------------------------------------------------
-
-def detect_stale_price_runs(df: pd.DataFrame, min_run: int = 5) -> pd.DataFrame:
-    """
-    Rachas de cierres identicos consecutivos. Es exactamente el patron de
-    "apenas volatilidad" de un periodo poco publico: no es que el precio
-    sea estable, es que no hay suficiente negociacion para que se mueva.
-    Util como señal complementaria para acotar el regimen inicial ilíquido.
-    """
-    same_as_prev = df["Close"] == df["Close"].shift(1)
-    run_id = (~same_as_prev).cumsum()
-    run_length = same_as_prev.groupby(run_id).cumsum() + 1
-
-    stale = run_length >= min_run
-    return df.loc[stale, ["Close"]].assign(run_length=run_length[stale])
-
-
-# ---------------------------------------------------------------------------
-# 4. Onset del regimen de liquidez "normal"
+# 3. Onset del regimen de volatilidad "normal"
 # ---------------------------------------------------------------------------
 
 def detect_illiquid_onset(
     df: pd.DataFrame,
-    window: str = "60D",
-    volume_ratio_threshold: float = 0.25,
-    vol_ratio_threshold: float = 0.5,
+    min_period: str = "60D",
+    ratio_min: float = 3.0,
+    max_fraction: float = 0.5,
 ) -> dict:
     """
-    Estima desde que fecha el activo empieza a comportarse como "el
-    mercado real" en vez del periodo inicial de baja negociacion (poco
-    free float, cotizacion OTC previa, etc.) que algunas fuentes de datos
-    mezclan sin avisar dentro de la serie historica.
+    Detecta el tramo inicial de baja volatilidad (poco free float, SPAC o
+    cotizacion OTC previa) que algunas fuentes mezclan con el historico real.
 
-    window es una ventana BASADA EN TIEMPO (p. ej. "60D"), no en numero
-    de barras -- funciona igual sobre datos diarios, horarios o de 1 min,
-    porque pandas la interpreta contra el indice datetime real, no contra
-    un conteo de filas. Requiere indice datetime ordenado (sin duplicados).
+    Busca el unico punto de corte que mejor separa dos varianzas de retornos
+    logaritmicos (maxima verosimilitud gaussiana). Usa toda la serie, incluido
+    el futuro: es limpieza historica, no una feature. Solo recorta si
+    std_despues / std_antes >= ratio_min; si no, onset_date es None.
 
-    Metodo (heuristico -- confirma siempre con un grafico de volumen y
-    volatilidad rolling antes de recortar nada): compara volumen y
-    volatilidad realizada de una ventana movil contra la mediana de todo
-    el historico, y exige que ambas se sostengan por encima de un umbral
-    relativo durante toda la ventana, no solo un cruce aislado.
+    min_period:   duracion minima de cada tramo (basada en tiempo, vale para 1d, 1h o 1min)
+    max_fraction: fraccion maxima de la serie que se puede recortar
+    onset_date es el primer dia del regimen normal.
     """
-    volume_roll = df["Volume"].rolling(window).median()
-    volume_ratio = volume_roll / df["Volume"].median()
+    ret = np.log(df["Close"]).diff().replace([np.inf, -np.inf], np.nan).dropna()
+    n = len(ret)
+    result = {"onset_date": None, "vol_ratio": None}
+    if n < 4:
+        return result
 
-    ret = df["Close"].pct_change()
-    vol_roll = ret.rolling(window).std()
-    # la referencia se calcula sobre retornos recortados en los percentiles
-    # extremos: un solo salto grande en la transicion illiquido -> normal
-    # (no un bad-tick, un cambio real de nivel de precio) puede inflar la
-    # std de toda la serie y hacer que el resto nunca supere el umbral.
-    ret_for_scale = ret.clip(lower=ret.quantile(0.01), upper=ret.quantile(0.99))
-    vol_ratio = vol_roll / ret_for_scale.std()
+    span = pd.Timedelta(min_period)
+    k_min = max(ret.index.searchsorted(ret.index[0] + span) + 1, 2)
+    k_max = min(ret.index.searchsorted(ret.index[-1] - span, side="right") - 1, int(n * max_fraction), n - 2)
+    if k_min > k_max:
+        return result
 
-    qualifies = (volume_ratio > volume_ratio_threshold) & (vol_ratio > vol_ratio_threshold)
-    sustained = qualifies.rolling(window).min().fillna(0).astype(bool)
+    x = ret.to_numpy()
+    s1, s2 = np.cumsum(x), np.cumsum(x**2)
+    k = np.arange(k_min, k_max + 1)
+    var_before = np.maximum((s2[k - 1] - s1[k - 1] ** 2 / k) / k, 1e-18)
+    var_after = np.maximum(((s2[-1] - s2[k - 1]) - (s1[-1] - s1[k - 1]) ** 2 / (n - k)) / (n - k), 1e-18)
+    best = np.argmin(k * np.log(var_before) + (n - k) * np.log(var_after))
 
-    onset_date = sustained[sustained].index.min() if sustained.any() else None
-
-    return {
-        "onset_date": onset_date,
-        "note": (
-            f"El cambio de regimen real probablemente ocurrio ~{window} "
-            "antes de onset_date -- la ventana de sostenimiento desplaza "
-            "la deteccion hacia adelante."
-        ),
-        "volume_ratio": volume_ratio,
-        "vol_ratio": vol_ratio,
-    }
+    result["vol_ratio"] = float(np.sqrt(var_after[best] / var_before[best]))
+    if result["vol_ratio"] >= ratio_min:
+        result["onset_date"] = ret.index[k[best]]
+    return result
 
 
 # ---------------------------------------------------------------------------
-# 5. Funcion de pipeline: una sola llamada, devuelve (df_limpio, reporte)
+# Pipeline de limpieza: una sola llamada, usa las tres funciones anteriores
 # ---------------------------------------------------------------------------
 
-def preprocess_ohlcv(
-    df: pd.DataFrame,
-    *,
-    on_invalid: str = "drop",          # "drop" o "nan"
-    fix_spikes: bool = True,
-    spike_jump_threshold: float = 0.30,
-    spike_revert_tolerance: float = 0.05,
-    interpolate_limit: int = 2,
-    drop_illiquid_onset: bool = True,
-    illiquid_window: str = "60D",
-    illiquid_volume_ratio_threshold: float = 0.25,
-    illiquid_vol_ratio_threshold: float = 0.5,
-) -> tuple[pd.DataFrame, pd.DataFrame]:
+def clean_ohlcv(df, drop_illiquid_onset=True, verbose=False):
     """
-    Aplica la limpieza completa sobre un dataframe OHLCV crudo y devuelve
-    (df_limpio, reporte). El reporte es un log fila a fila de cada accion
-    tomada -- la limpieza nunca es silenciosa, siempre queda auditable.
-
-    Orden de las operaciones (importa: cada paso asume que el anterior
-    ya se aplico):
-      1. Filas con violaciones basicas (precio<=0, volumen<0, OHLC
-         incoherente, NaN) -> se eliminan o se marcan NaN segun on_invalid.
-      2. Spikes tipo bad-tick -> se ponen a NaN y se interpolan
-         linealmente, con un limite de huecos consecutivos para no
-         tapar un gap real (p. ej. un halt de varios dias) con un
-         valor inventado.
-      3. Periodo inicial de baja liquidez -> se recorta desde el inicio
-         de la serie hasta la fecha de onset detectada.
-
-    on_invalid="drop" rompe la continuidad del indice de fechas (deja
-    huecos donde antes habia una vela invalida). Si tu pipeline necesita
-    un indice de calendario continuo, reindexa contra el calendario de
-    trading real DESPUES de llamar a esta funcion, no antes.
+    Limpieza del dataframe OHLCV crudo, ANTES de cualquier resample o feature engineering.
+    Pasos, en orden (cada uno asume que el anterior ya se aplico):
+      1. Normaliza el indice (datetime, ordenado, sin duplicados).
+      2. Corrige violaciones basicas (precio<=0, volumen<0, High<Low,Close/Open fuera de [Low,High]) 
+      3. Interpola spikes tipo bad-tick (salto que se revierte casi exactamente al dia/barra siguiente)
+      4. Recorta el tramo inicial de baja liquidez, si lo hay.
+    El log de que se hizo y por que queda en df.attrs["validation_report"]
+    -- no se pierde, pero tampoco estorba si solo usas el dataframe.
     """
     df = df.copy()
-    log = []
+    df.index = pd.to_datetime(df.index)
+    df = df.sort_index()
+    df = df[~df.index.duplicated(keep="last")]
+
+    report_rows = []
     price_cols = ["Open", "High", "Low", "Close"]
 
-    # -- 1. violaciones basicas ---------------------------------------
+    # -- violaciones basicas: fix columna por columna, no borrar el dia --
+    # Se atribuye cada violacion a la(s) columna(s) mas plausiblemente
+    # responsables, en vez de invalidar las 4 solo porque una fallo.
     flags = check_basic_sanity(df)
-    invalid_idx = df.index[flags["any_violation"]]
-    for ts in invalid_idx:
-        log.append({
-            "date": ts,
-            "action": f"invalid_row_{on_invalid}",
-            "detail": [c for c in flags.columns if c != "any_violation" and flags.loc[ts, c]],
-        })
+    for col in price_cols + ["Volume"]:
+        mask = flags[f"invalid_{col.lower()}"]
+        for ts in df.index[mask]:
+            report_rows.append({"date": ts, "action": f"invalid_{col.lower()}_interpolated"})
+        df.loc[mask, col] = np.nan
 
-    if on_invalid == "drop":
-        df = df.drop(index=invalid_idx)
-    elif on_invalid == "nan":
-        df.loc[invalid_idx, price_cols + ["Volume"]] = np.nan
-    else:
-        raise ValueError('on_invalid debe ser "drop" o "nan"')
+    cols_to_fill = price_cols + ["Volume"]
+    df[cols_to_fill] = df[cols_to_fill].astype(float).interpolate(method="linear", limit=2)
 
-    # -- 2. spikes tipo bad-tick ---------------------------------------
-    if fix_spikes:
-        spikes = detect_price_spikes(df, spike_jump_threshold, spike_revert_tolerance)
-        for ts, row in spikes.iterrows():
-            log.append({"date": ts, "action": "spike_interpolated", "detail": {"return": round(row["return"], 4)}})
+    # lo que siga en NaN (borde de la serie sin vecino valido, o un hueco
+    # mayor al limite) no se puede arreglar sin inventar un dato -- ahi
+    # si se elimina el dia, pero deberia ser raro, no la via principal.
+    unfixable = df[cols_to_fill].isna().any(axis=1)
+    for ts in df.index[unfixable]:
+        report_rows.append({"date": ts, "action": "unfixable_row_drop"})
+    df = df.loc[~unfixable]
 
+    # -- spikes tipo bad-tick ------------------------------------------
+    spikes = detect_price_spikes(df)
+    for ts, row in spikes.iterrows():
+        report_rows.append({"date": ts, "action": "spike_interpolated", "return": round(row["return"], 4)})
+    if len(spikes):
         df.loc[spikes.index, price_cols] = np.nan
-        df[price_cols] = df[price_cols].interpolate(method="linear", limit=interpolate_limit)
+        df[price_cols] = df[price_cols].interpolate(method="linear", limit=2)
 
-    # -- 3. periodo inicial de baja liquidez ---------------------------
-    if drop_illiquid_onset:
-        onset = detect_illiquid_onset(
-            df,
-            window=illiquid_window,
-            volume_ratio_threshold=illiquid_volume_ratio_threshold,
-            vol_ratio_threshold=illiquid_vol_ratio_threshold,
-        )
+    # -- periodo inicial de baja liquidez -- unico paso que recorta calendario,
+    #    y solo desde el principio de la serie hacia adelante -------------
+    if drop_illiquid_onset and len(df) > 1:
+        onset = detect_illiquid_onset(df)
         if onset["onset_date"] is not None:
             dropped = df.loc[: onset["onset_date"]].iloc[:-1]
             for ts in dropped.index:
-                log.append({"date": ts, "action": "illiquid_period_dropped", "detail": {}})
+                report_rows.append({"date": ts, "action": "illiquid_period_dropped"})
             df = df.loc[onset["onset_date"] :]
 
-    report = (
-        pd.DataFrame(log).set_index("date").sort_index()
-        if log else pd.DataFrame(columns=["action", "detail"])
-    )
-    return df, report
+    # Se guarda como lista de dicts, NO como DataFrame: pandas compara los
+    # attrs con "==" en operaciones internas (resample, concat) via
+    # __finalize__, y comparar un DataFrame con "==" ahi rompe con un
+    # ValueError de verdad ambigua. Una lista de dicts compara sin problema.
+    df.attrs["validation_report"] = report_rows
+    if verbose and report_rows:
+        report = validation_report_to_df(report_rows)
+        print(f"dataValidation: {len(report)} acciones aplicadas")
+        print(report["action"].value_counts())
+
+    return df
 
 
-# ---------------------------------------------------------------------------
-# Uso
-# ---------------------------------------------------------------------------
-
-if __name__ == "__main__":
-    df_raw = pd.read_csv("precios_crudos.csv", index_col=0, parse_dates=True)
-
-    df_clean, report = preprocess_ohlcv(df_raw)
-
-    print(f"Filas originales: {len(df_raw)}  ->  filas limpias: {len(df_clean)}")
-    print(f"\nAcciones aplicadas ({len(report)}):")
-    print(report["action"].value_counts())
-    print("\nDetalle:")
-    print(report)
+def validation_report_to_df(report_rows):
+    """Convierte el log de dataValidation (lista de dicts) a DataFrame
+    para inspeccion -- uso: validation_report_to_df(df.attrs["validation_report"])"""
+    if not report_rows:
+        return pd.DataFrame(columns=["action"])
+    return pd.DataFrame(report_rows).set_index("date").sort_index()
