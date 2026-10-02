@@ -30,7 +30,7 @@ function DeviationCandles() {
   return (
     <div className="flex min-h-0 flex-1 flex-col gap-4">
       <ScreenHeader
-        title="DEVIATION CANDLES · MAE"
+        title="MAXIMUM ADVERSE EXCURSION · CANDLES"
         subtitle="Maximum adverse excursion of green/red candles · Current vs. historical distribution"
       />
       {error && <p className="text-sm text-destructive">Error: {error}</p>}

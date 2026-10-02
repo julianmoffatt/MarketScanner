@@ -31,7 +31,7 @@ function DeviationEmaTrend() {
   return (
     <div className="flex min-h-0 flex-1 flex-col gap-4">
       <ScreenHeader
-        title="DEVIATION EMA TREND · ABSORPTION / REJECTION"
+        title="MAXIMUM ADVERSE EXCURSION · EMA TREND"
         subtitle="How far does price push through the EMA before reversing? · Historical distribution by pattern"
       />
       {error && <p className="text-sm text-destructive">Error: {error}</p>}
@@ -45,7 +45,8 @@ function DeviationEmaTrend() {
           currentField={null}
           footerLayout="row"
           showPercentile={false}
-          panelFooter={(panel) => <DeviationForwardReturnRankings panel={panel} />}
+          compactFirstRow
+          panelFooter={(panel, compact) => <DeviationForwardReturnRankings panel={panel} compact={compact} />}
         />
       )}
     </div>
