@@ -1,6 +1,10 @@
 # services/analytics_service.py
-from ..analysis import rsi, mean_reversion_extension_to_mean, mean_reversion_time_away, deviations_candle, deviation_ema_trend, strikes_candles, strikes_trend, quarter_patterns
+from ..analysis import home_statistics, rsi, mean_reversion_extension_to_mean, mean_reversion_time_away, deviations_candle, deviation_ema_trend, strikes_candles, strikes_trend, quarter_patterns
 from .. import pipeline
+
+def get_home_statistics(ticker: str) -> dict:
+    df = pipeline.processedTimeframes(ticker, 0)
+    return home_statistics.compute(df)
 
 def get_mean_reversion_extension_to_mean_lt(ticker: str) -> dict:
     df = pipeline.processedTimeframes(ticker, 1)

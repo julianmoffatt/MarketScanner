@@ -54,6 +54,18 @@ class TimeframesEmaType_Percentiles_and_CurrentValue_Panel(TimeframeEmaTypePanel
     p95: float
     percentile: float
 
+
+# ---- Pantalla 0: HOME
+class Home_Response(TickerBaseResponse):
+    current_price: float
+    current_week_return: Optional[float] = None
+    current_month_return: Optional[float] = None
+    current_quarter_return: Optional[float] = None
+    current_year_return: Optional[float] = None
+    trailing_1y_return: Optional[float] = None
+    trailing_3y_return: Optional[float] = None
+    trailing_5y_return: Optional[float] = None
+
 # ---- Pantalla 1: Extensión a la media ----
 
 class MeanReversion_ExtensionToMean_Row(BaseModel):

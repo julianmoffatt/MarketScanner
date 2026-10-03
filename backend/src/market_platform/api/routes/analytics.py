@@ -8,6 +8,12 @@ from ...services import analytics_service
 
 router = APIRouter(prefix="/analytics", tags=["analytics"])
 
+@router.get("/{ticker}/home", response_model=Home_Response)
+def get_home(ticker: str):
+    stats = analytics_service.get_home_statistics(ticker)
+    return {"ticker": ticker, **stats}
+
+
 @router.get("/{ticker}/mean_reversion_extension_to_mean_lt", response_model=MeanReversion_ExtensionToMean_Response)
 def get_descriptive_stats_lt(ticker: str):
     panels = analytics_service.get_mean_reversion_extension_to_mean_lt(ticker)
