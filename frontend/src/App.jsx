@@ -2,6 +2,7 @@ import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import RootLayout from "./layouts/RootLayout";
 import AnalyticsLayout from "./layouts/AnalyticsLayout";
 import MLLayout from "./layouts/MLLayout";
+import Home from "./features/analytics/pages/Home"
 import MeanReversionDistance from "./features/analytics/pages/MeanReversionDistance";
 import MeanReversionTimeAway from "./features/analytics/pages/MeanReversionTimeAway";
 import DeviationCandles from "./features/analytics/pages/DeviationCandles";
@@ -12,6 +13,7 @@ import Rsi from "./features/analytics/pages/Rsi";
 import QuarterPatterns from "./features/analytics/pages/QuarterPatterns";
 import MLTraining from "./features/ml/pages/MLTraining";
 import MLPrediction from "./features/ml/pages/MLPrediction";
+import Backtesting from "./features/backtesting/pages/Backtesting";
 
 const DEFAULT_TICKER = "sp500";
 
@@ -24,10 +26,11 @@ function App() {
 
           <Route
             path="analytics"
-            element={<Navigate to={`/analytics/${DEFAULT_TICKER}/mean-reversion-distance?mode=lt`} replace />}
+            element={<Navigate to={`/analytics/${DEFAULT_TICKER}/home`} replace />}
           />
 
           <Route path="analytics/:ticker" element={<AnalyticsLayout />}>
+            <Route path="home" element={<Home />} />
             <Route path="mean-reversion-distance" element={<MeanReversionDistance />} />
             <Route path="mean-reversion-time-away" element={<MeanReversionTimeAway />} />
             <Route path="deviation-candles" element={<DeviationCandles />} />
@@ -47,6 +50,8 @@ function App() {
             <Route path="training" element={<MLTraining />} />
             <Route path="prediction" element={<MLPrediction />} />
           </Route>
+
+          <Route path="backtesting" element={<Backtesting />} />
         </Route>
       </Routes>
     </BrowserRouter>

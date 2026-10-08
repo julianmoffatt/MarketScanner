@@ -27,7 +27,7 @@ function ScreenHeader({ title, subtitle, children }) {
       </div>
       {children}
       <span className="absolute left-1/2 -translate-x-1/2 font-semibold text-foreground">
-        {ticker.toUpperCase()}
+        {ticker?.toUpperCase()}
       </span>
     </div>
     </>

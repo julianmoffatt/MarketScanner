@@ -4,6 +4,7 @@ import avatar from "../assets/avatar.png";
 const SECTIONS = [
   { to: "/analytics", label: "Statistics" },
   { to: "/ml", label: "Machine Learning" },
+  { to: "/backtesting", label: "Backtesting" },
 ];
 
 function RootLayout() {

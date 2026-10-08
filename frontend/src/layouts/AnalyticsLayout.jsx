@@ -3,6 +3,7 @@ import { NavLink, Outlet } from "react-router-dom";
 import { useTicker } from "../features/analytics/hooks/useTicker";
 
 const TABS = [
+  { path: "home", label: "Home" },
   { path: "mean-reversion-distance?mode=lt", label: "Distance Mean" },
   { path: "mean-reversion-time-away?mode=ht", label: "Time Away Mean" },
   { path: "trend-duration", label: "Trend Duration" },

@@ -58,6 +58,7 @@ class TimeframesEmaType_Percentiles_and_CurrentValue_Panel(TimeframeEmaTypePanel
 # ---- Pantalla 0: HOME
 class Home_Response(TickerBaseResponse):
     current_price: float
+    previous_close: float
     current_week_return: Optional[float] = None
     current_month_return: Optional[float] = None
     current_quarter_return: Optional[float] = None
@@ -241,4 +242,46 @@ class ML_Prediction_Response(TickerBaseResponse):
     as_of_date: str
     panels: list[ML_Prediction_Panel]
 
+# Backtesting
+class BacktestConfigRequest(BaseModel):
+    starting_capital: float = 5000.0
+    initial_exposure: float = 0.5
+    window_years: int = 5
+    fee: float = 0.25
+    spread: float = 0.001
+    periods_per_year: int = 252
+    risk_free_rate: float = 0.0
 
+class BacktestRequest(BaseModel):
+    tickers: list[str]
+    strategy: str
+    config: BacktestConfigRequest = BacktestConfigRequest()
+
+class CurvePoint(BaseModel):
+    date: str
+    value: float
+
+class ExposurePoint(BaseModel):
+    date: str
+    values: dict[str, float]          # activo -> coeficiente ese día
+
+class BacktestMetrics(BaseModel):
+    total_return: Optional[float] = None
+    cagr: Optional[float] = None
+    volatility: Optional[float] = None
+    sharpe: Optional[float] = None
+    sortino: Optional[float] = None
+    max_drawdown: Optional[float] = None
+    max_drawdown_duration: Optional[int] = None
+    average_exposure: Optional[float] = None
+    exposure_changes: int
+
+class BacktestResponse(BaseModel):
+    tickers: list[str]
+    strategy: str
+    equity: list[CurvePoint]
+    exposure: list[ExposurePoint]
+    average_exposure: dict[str, float]
+    metrics: BacktestMetrics
+    benchmark_equity: list[CurvePoint]
+    benchmark_metrics: BacktestMetrics

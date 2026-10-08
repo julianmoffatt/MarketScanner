@@ -8,6 +8,10 @@ async function fetchAnalytics(path) {
   return response.json();
 }
 
+export function getHome(ticker) {
+  return fetchAnalytics(`${ticker}/home_statistics`);
+}
+
 export function getMeanReversion_Distance_LT(ticker) {
   return fetchAnalytics(`${ticker}/mean_reversion_extension_to_mean_lt`);
 }

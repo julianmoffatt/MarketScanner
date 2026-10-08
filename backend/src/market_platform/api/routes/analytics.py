@@ -8,7 +8,7 @@ from ...services import analytics_service
 
 router = APIRouter(prefix="/analytics", tags=["analytics"])
 
-@router.get("/{ticker}/home", response_model=Home_Response)
+@router.get("/{ticker}/home_statistics", response_model=Home_Response)
 def get_home(ticker: str):
     stats = analytics_service.get_home_statistics(ticker)
     return {"ticker": ticker, **stats}
