@@ -13,9 +13,11 @@ class SimulatedBroker():
         for i, order in enumerate(orders):
             if not np.isnan(order) and prices[i] > 0:            
                 if order < 0:
-                    shares[i] = order 
-                    cash[i] = (abs(order) * (prices[i]*(1 - self.spread))) - self.fee
-                elif order > 0:
+                    proceeds = abs(order) * (prices[i]*(1 - self.spread))
+                    if proceeds > self.fee:
+                        shares[i] = order
+                        cash[i] = proceeds - self.fee
+                elif order > self.fee:
                     shares[i] = (order - self.fee) / (prices[i] * (1 + self.spread))
                     cash[i] = order * -1
             else: 

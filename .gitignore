@@ -186,3 +186,6 @@ node_modules/
 
 # Datos descargados/procesados por el pipeline -- se regeneran solos, no son codigo
 backend/data/
+
+# Modelos entrenados (joblib) -- se regeneran entrenando, no son codigo
+backend/models/
