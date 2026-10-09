@@ -8,6 +8,7 @@ import {
 } from "../api/analyticsApi";
 import ScreenHeader from "../components/ScreenHeader";
 import PanelGrid from "../components/PanelGrid";
+import DayOfMonthPanels from "../components/DayOfMonthPanels";
 import { getChartTheme } from "@/lib/plotlyTheme";
 
 // El modo (lt/ht/macro) vive en la query string (?mode=) en vez de en la
@@ -87,6 +88,7 @@ function MeanReversionDistance() {
           dataColor={getChartTheme().accentDark}
         />
       )}
+      {panels.length > 0 && <DayOfMonthPanels panels={panels} />}
     </div>
   );
 }
