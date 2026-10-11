@@ -1,6 +1,7 @@
 # Market Scanner | Advanced Market Statistics
 
 ![CI](https://github.com/julianmoffatt/MarketScanner/actions/workflows/ci.yml/badge.svg)
+![CD](https://github.com/julianmoffatt/MarketScanner/actions/workflows/cd.yml/badge.svg)
 
 Full-Stack Quantitative Market Analytics Platform — Developer & Researcher
 
@@ -59,6 +60,8 @@ This is the part of the project under the most active iteration. The feature set
 
 **Frontend** — React 19, Vite, React Router, Tailwind CSS 4, shadcn/ui, Plotly.js
 
+**DevOps** — Docker (multi-stage builds), Docker Compose, GitHub Actions (CI/CD), GitHub Container Registry, pytest + coverage, ruff
+
 ## Architecture
 
 ```
@@ -82,6 +85,37 @@ A few implementation decisions worth calling out beyond the diagram above:
 
 - **Two layers of caching.** `pipeline.processedTimeframes()` caches parsed OHLCV data per ticker so repeat requests do not re-read CSVs from disk on every call. Separately, the ML pipeline caches the trained models per ticker — walk-forward means several fits per model instead of one, so training three models can take a few seconds to a bit longer on tickers with long history, and the Training and Prediction screens share that cache rather than training twice for the same ticker.
 - **A model registry instead of hardcoded model logic.** Adding Logistic Regression as a third model required no changes to the shared training pipeline (train/test split, confusion matrix, ROC, calibration curve). Each model self-registers via a decorator, and the pipeline introspects `model.get_params()` at runtime to determine which hyperparameters and preprocessing steps apply to it.
+- **Containers are smoke-tested in CI, not just built.** The `docker` job starts both containers and checks that the API (`/docs`) and a client-side route (`/screener`, served through nginx's `try_files` fallback) respond, so a Dockerfile that builds but does not start fails before it reaches `main`.
+- **`main` is protected.** Changes only land through pull requests with the `backend`, `frontend` and `docker` checks green, so every published image has already passed CI.
+- **Publishing needs no stored credentials.** The CD workflow logs in to GitHub Container Registry with the short-lived `GITHUB_TOKEN` and the minimum permissions it needs (`contents: read`, `packages: write`).
+- **Multi-stage frontend image.** Node compiles the React app and only the static output is copied into an nginx image, so the final image ships no `node_modules` or sources.
+- **State lives outside the container.** Downloaded market data and trained models are kept in named Docker volumes, so rebuilding or recreating the containers does not re-download or re-train anything.
+- **CORS is configuration, not code.** The browser origin the API accepts is read from the `CORS_ORIGINS` environment variable (default `http://localhost:5173`), so the same image works behind a different frontend address.
+
+## CI/CD
+
+Every pull request and every push to `main` runs the **CI** workflow ([`.github/workflows/ci.yml`](.github/workflows/ci.yml)):
+
+| Job | What it checks |
+|---|---|
+| `backend` | `ruff` lint, then the unit and integration test suite with a coverage gate (fails below 50%) |
+| `frontend` | `npm ci`, ESLint and the production build |
+| `docker` | Builds both images and smoke-tests the running containers (runs only if the two jobs above pass) |
+
+When a pull request is merged into `main`, the **CD** workflow ([`.github/workflows/cd.yml`](.github/workflows/cd.yml)) builds the backend and frontend images in parallel and publishes them to GitHub Container Registry, tagged `latest` and `sha-<commit>` (an immutable tag for each version).
+
+```
+branch -> pull request -> CI (backend + frontend -> docker) -> merge to main -> CD (publish images)
+```
+
+To run the same checks locally:
+
+```bash
+python -m ruff check backend
+python -m pytest --cov --cov-fail-under=50
+npm --prefix frontend run lint
+npm --prefix frontend run build
+```
 
 ## Project structure
 
@@ -99,6 +133,10 @@ frontend/
     features/analytics/  # Statistics screens
     features/ml/          # Machine Learning screens
     layouts/               # shared nav/header
+.github/workflows/         # ci.yml (lint, tests, build, container smoke tests), cd.yml (publish images)
+Dockerfile                 # backend image
+docker-compose.yml         # runs backend + frontend locally
+frontend/Dockerfile        # multi-stage frontend image (Node build -> nginx)
 ```
 
 ## Getting started
@@ -115,3 +153,26 @@ npm run dev
 ```
 
 `npm run dev` starts the FastAPI backend (`localhost:8000`) and the Vite frontend (`localhost:5173`) together. Open `http://localhost:5173`.
+
+### Run with Docker
+
+Requires **Docker Desktop**. No local Python or Node.js needed (the images use Python 3.12 and Node 22).
+
+```bash
+git clone https://github.com/julianmoffatt/MarketScanner.git
+cd MarketScanner
+docker compose up --build
+```
+
+Open `http://localhost:8080` for the app; the API docs are at `http://localhost:8000/docs`. Stop it with `docker compose down`.
+
+Downloaded market data and trained models are stored in the named volumes `ms_data` and `ms_models`, so they survive `docker compose down`. Use `docker compose down -v` to delete them and start from scratch.
+
+The images built by the CD workflow are also published to GitHub Container Registry:
+
+```bash
+docker pull ghcr.io/julianmoffatt/marketscanner-backend:latest
+docker pull ghcr.io/julianmoffatt/marketscanner-frontend:latest
+```
+
+The backend accepts requests from a single browser origin, set with the `CORS_ORIGINS` environment variable (default `http://localhost:5173`; `docker-compose.yml` sets it to `http://localhost:8080`). The frontend image is built to call the API at `http://localhost:8000`.
