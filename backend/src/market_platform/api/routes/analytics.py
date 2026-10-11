@@ -78,3 +78,9 @@ def get_rsi(ticker: str):
 def get_quarter_patterns(ticker: str):
     panels = analytics_service.get_quarter_patterns(ticker)
     return {"ticker": ticker, "panels": panels}
+
+
+@router.get("/{ticker}/z_score_returns", response_model=ZScoreReturns_Response)
+def get_z_score_returns(ticker: str):
+    stats = analytics_service.get_z_score_return_month(ticker)
+    return {"ticker": ticker, **stats}
