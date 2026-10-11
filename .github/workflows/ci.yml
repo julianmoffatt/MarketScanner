@@ -6,6 +6,7 @@ on:
   pull_request:
 
 jobs:
+  # Los tres primeros jobs son independientes y corren a la vez, cada uno en su maquina.
   backend:
     runs-on: ubuntu-latest
     steps:
@@ -18,9 +19,60 @@ jobs:
       - run: pip install -r backend/requirements-dev.txt
       - name: Lint
         run: ruff check backend
+      # --cov-fail-under: si la cobertura baja de 50%, el job falla (hoy esta en ~55%).
       - name: Tests
-        run: pytest --cov --cov-report=term-missing --cov-report=xml
+        run: pytest --cov --cov-report=term-missing --cov-report=xml --cov-fail-under=50
       - uses: actions/upload-artifact@v4
         with:
           name: coverage-xml
           path: coverage.xml
+
+  frontend:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      # npm ci instala exactamente lo que dice package-lock.json (reproducible).
+      - run: npm ci
+      - run: npm run lint
+      - run: npm run build
+
+  # Comprueba que las dos imagenes se construyen Y que arrancan. Solo empieza si el
+  # backend y el frontend han pasado: no tiene sentido empaquetar codigo que no pasa los tests.
+  docker:
+    runs-on: ubuntu-latest
+    needs: [backend, frontend]
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build backend image
+        run: docker build -t marketscanner-backend .
+      - name: Build frontend image
+        run: docker build -t marketscanner-frontend ./frontend
+      # Prueba de humo: arranca el contenedor y comprueba que la API responde.
+      # Si el CMD, las rutas internas o las dependencias estan mal, esto falla aqui y no en produccion.
+      - name: Smoke test backend
+        run: |
+          docker run -d --name backend -p 8000:8000 marketscanner-backend
+          for i in $(seq 1 30); do
+            curl -fsS http://localhost:8000/docs > /dev/null && exit 0
+            sleep 2
+          done
+          docker logs backend
+          exit 1
+      # Lo mismo con el frontend, y una ruta de React (/screener) para comprobar el nginx.conf.
+      - name: Smoke test frontend
+        run: |
+          docker run -d --name frontend -p 8080:80 marketscanner-frontend
+          for i in $(seq 1 15); do
+            curl -fsS http://localhost:8080/screener > /dev/null && exit 0
+            sleep 2
+          done
+          docker logs frontend
+          exit 1
