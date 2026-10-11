@@ -17,6 +17,6 @@ universes:
 
   hyperliquid: ["BTC","ETH","NVDA","TSLA","MU","GOOGL","PLTR","INTC","AAPL","AMZN","AMD","MSFT","NFLX","META","ORCL","BABA","GOLD","SILVER"]
 
-  mysymbols: ["SP500","ASTS","RKLB","IREN","MU","NVDA","GOOGL","AAPL","AMZN","AMD","MSFT","NFLX","META","ORCL","INTC","TSLA","NVO","BABA","BIDU","JD","GOLD","SILVER","OIL","BTC","ETH"]
+  mysymbols: ["SP500","ASTS","RKLB","IREN","MU","NVDA","GOOGL","AAPL","AMZN","AMD","MSFT","NFLX","META","ORCL","INTC","TSLA","BABA","BIDU","JD","GOLD","SILVER","OIL","BTC","ETH"]
 
   sp: ["SP500"]

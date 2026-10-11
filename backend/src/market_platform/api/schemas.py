@@ -185,6 +185,14 @@ class QuarterPattern_Panel(BaseModel):
 class QuarterPattern_Response(TickerBaseResponse):
     panels: list[QuarterPattern_Panel]
 
+class ZScoreReturns_Row(BaseModel):
+    day: int
+    z_score: float
+
+class ZScoreReturns_Response(TickerBaseResponse):
+    current_z_score: float
+    rows: list[ZScoreReturns_Row]
+
 
 # ---- Pantalla: Machine Learning - Training ----
 
@@ -285,3 +293,39 @@ class BacktestResponse(BaseModel):
     metrics: BacktestMetrics
     benchmark_equity: list[CurvePoint]
     benchmark_metrics: BacktestMetrics
+
+# ---- Screeners ----
+
+class MeanReversionScreener_Row(BaseModel):
+    ticker: str
+    daily_type: Optional[str] = None
+    daily_strike: Optional[float] = None
+    daily_strike_percentile: Optional[float] = None
+    weekly_type: Optional[str] = None
+    weekly_strike: Optional[float] = None
+    weekly_strike_percentile: Optional[float] = None
+    monthly_type: Optional[str] = None
+    monthly_strike: Optional[float] = None
+    monthly_strike_percentile: Optional[float] = None
+    daily_time_away_ema10: Optional[float] = None
+    daily_time_away_ema10_percentile: Optional[float] = None
+    daily_time_away_ema20: Optional[float] = None
+    daily_time_away_ema20_percentile: Optional[float] = None
+    daily_time_away_ema50: Optional[float] = None
+    daily_time_away_ema50_percentile: Optional[float] = None
+    weekly_time_away_ema10: Optional[float] = None
+    weekly_time_away_ema10_percentile: Optional[float] = None
+    daily_extension_ema10_percentile: Optional[float] = None
+    daily_extension_ema20_percentile: Optional[float] = None
+    weekly_extension_ema10_percentile: Optional[float] = None
+    weekly_extension_ema20_percentile: Optional[float] = None
+    trend_ema10_side: Optional[float] = None
+    trend_ema10_duration: Optional[float] = None
+    trend_ema10_percentile: Optional[float] = None
+    trend_ema20_side: Optional[float] = None
+    trend_ema20_duration: Optional[float] = None
+    trend_ema20_percentile: Optional[float] = None
+
+class MeanReversionScreener_Response(BaseModel):
+    universe: str
+    rows: list[MeanReversionScreener_Row]

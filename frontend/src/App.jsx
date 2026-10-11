@@ -11,9 +11,11 @@ import StrikesCandles from "./features/analytics/pages/StrikesCandles";
 import TrendDuration from "./features/analytics/pages/TrendDuration";
 import Rsi from "./features/analytics/pages/Rsi";
 import QuarterPatterns from "./features/analytics/pages/QuarterPatterns";
+import ZScoreReturns from "./features/analytics/pages/ZScoreReturns";
 import MLTraining from "./features/ml/pages/MLTraining";
 import MLPrediction from "./features/ml/pages/MLPrediction";
 import Backtesting from "./features/backtesting/pages/Backtesting";
+import Screener from "./features/screener/pages/Screener";
 
 const DEFAULT_TICKER = "sp500";
 
@@ -39,6 +41,7 @@ function App() {
             <Route path="trend-duration" element={<TrendDuration />} />
             <Route path="rsi" element={<Rsi />} />
             <Route path="quarter-patterns" element={<QuarterPatterns />} />
+            <Route path="z-score-returns" element={<ZScoreReturns />} />
           </Route>
 
           <Route
@@ -52,6 +55,7 @@ function App() {
           </Route>
 
           <Route path="backtesting" element={<Backtesting />} />
+          <Route path="screener" element={<Screener />} />
         </Route>
       </Routes>
     </BrowserRouter>

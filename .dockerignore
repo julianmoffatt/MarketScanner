@@ -1,0 +1,7 @@
+.git
+node_modules
+frontend
+**/__pycache__
+backend/data
+backend/models
+backend/tests
