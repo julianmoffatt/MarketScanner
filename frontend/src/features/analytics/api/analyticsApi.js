@@ -55,3 +55,7 @@ export function getRsi(ticker) {
 export function getQuarterPatterns(ticker) {
   return fetchAnalytics(`${ticker}/quarter_patterns`);
 }
+
+export function getZScoreReturn(ticker) {
+  return fetchAnalytics(`${ticker}/z_score_returns`);
+}

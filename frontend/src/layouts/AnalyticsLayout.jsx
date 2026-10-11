@@ -11,7 +11,8 @@ const TABS = [
   { path: "rsi", label: "RSI" },
   { path: "deviation-candles", label: "MAE (Candles)" },
   { path: "deviation-ema-trend", label: "MAE (EMA Trend)" },
-  { path: "quarter-patterns", label: "Quarter Patterns" }
+  { path: "quarter-patterns", label: "Quarter Patterns" },
+  { path: "z-score-returns", label: "Z Score Returns" }
 ];
 
 function AnalyticsLayout() {
@@ -30,8 +31,8 @@ function AnalyticsLayout() {
   return (
     <div className="flex min-h-0 flex-1 flex-col">
       <div className="border-b border-border">
-        <div className="relative flex items-center justify-end gap-6 px-6 py-4">
-          <nav className="absolute left-1/2 flex -translate-x-1/2 gap-6">
+        <div className="flex items-center gap-6 px-6 py-4">
+          <nav className="mx-auto flex min-w-0 flex-wrap justify-center gap-x-6">
             {TABS.map((tab) => (
               <NavLink
                 key={tab.path}
@@ -49,7 +50,7 @@ function AnalyticsLayout() {
             ))}
           </nav>
 
-          <form onSubmit={handleSubmit} className="flex items-center gap-2">
+          <form onSubmit={handleSubmit} className="flex shrink-0 items-center gap-2">
             <input
               value={input}
               onChange={(e) => setInput(e.target.value)}
