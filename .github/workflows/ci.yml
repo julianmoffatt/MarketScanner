@@ -66,12 +66,12 @@ jobs:
           done
           docker logs backend
           exit 1
-      # Lo mismo con el frontend, y una ruta de React (/screener) para comprobar el nginx.conf.
+      # Lo mismo con el frontend, y una ruta de React (/backtesting) para comprobar el nginx.conf.
       - name: Smoke test frontend
         run: |
           docker run -d --name frontend -p 8080:80 marketscanner-frontend
           for i in $(seq 1 15); do
-            curl -fsS http://localhost:8080/screener > /dev/null && exit 0
+            curl -fsS http://localhost:8080/backtesting > /dev/null && exit 0
             sleep 2
           done
           docker logs frontend

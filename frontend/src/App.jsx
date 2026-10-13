@@ -15,7 +15,6 @@ import ZScoreReturns from "./features/analytics/pages/ZScoreReturns";
 import MLTraining from "./features/ml/pages/MLTraining";
 import MLPrediction from "./features/ml/pages/MLPrediction";
 import Backtesting from "./features/backtesting/pages/Backtesting";
-import Screener from "./features/screener/pages/Screener";
 
 const DEFAULT_TICKER = "sp500";
 
@@ -55,7 +54,6 @@ function App() {
           </Route>
 
           <Route path="backtesting" element={<Backtesting />} />
-          <Route path="screener" element={<Screener />} />
         </Route>
       </Routes>
     </BrowserRouter>

@@ -4,7 +4,6 @@ import avatar from "../assets/avatar.png";
 const SECTIONS = [
   { to: "/analytics", label: "Statistics" },
   { to: "/ml", label: "Machine Learning" },
-  { to: "/screener", label: "Screener" },
   { to: "/backtesting", label: "Backtesting" },
 ];
 
