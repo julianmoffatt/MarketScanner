@@ -48,6 +48,12 @@ def _train_all_models(asset):
         return _train_all_models_cached(asset)
 
 
+def clear_cache():
+    # los modelos entrenados salen de los datos descargados: si estos se
+    # refrescan, hay que descartarlos para que se reentrenen con los nuevos.
+    _train_all_models_cached.cache_clear()
+
+
 def run_training(asset="sp500", model_name="random_forest_classifier"):
     results, _, _ = _train_all_models(asset)
     return next(r for r in results if r.model_name == model_name)

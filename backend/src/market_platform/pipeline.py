@@ -38,6 +38,12 @@ def processedTimeframes(symbol, t):
     return timeframes
 
 
+def clear_cache():
+    # vacia la cache en memoria de processedTimeframes (todos los simbolos).
+    # Los CSV no se tocan aqui: si siguen en disco se vuelven a leer de ellos.
+    processedTimeframes.cache_clear()
+
+
 #cargar database antes de que me pidan los simbolos concretos
 def loadDatabase():
     symbols =  config["universes"]["mysymbols"]
