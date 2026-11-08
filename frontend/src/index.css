@@ -3,9 +3,6 @@
 @import "shadcn/tailwind.css";
 @import "@fontsource-variable/geist";
 
-/* Tailwind v4 no escanea los archivos ignorados por git; esta carpeta se declara a mano. */
-@source "./features/screener";
-
 @custom-variant dark (&:is(.dark *));
 
 :root {
