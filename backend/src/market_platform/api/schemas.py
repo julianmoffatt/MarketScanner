@@ -67,6 +67,41 @@ class Home_Response(TickerBaseResponse):
     trailing_3y_return: Optional[float] = None
     trailing_5y_return: Optional[float] = None
 
+# ---- Home: fundamentales (solo acciones) ----
+class Fundamentals_Response(TickerBaseResponse):
+    available: bool
+    valuation: dict[str, Optional[float]]
+    profitability: dict[str, Optional[float]]
+    growth: dict[str, Optional[float]]
+    balance_dividend: dict[str, Optional[float]]
+    analysts: dict[str, Optional[float | str]]
+
+# ---- Correlaciones ----
+class Correlation_WindowStats(BaseModel):
+    correlation: Optional[float] = None
+    beta_up: Optional[float] = None
+    beta_down: Optional[float] = None
+    observations: int
+    observations_up: int
+    observations_down: int
+
+class Correlation_PeerRow(BaseModel):
+    symbol: str
+    group: str
+    windows: dict[str, Correlation_WindowStats]
+
+class Correlation_Curve(BaseModel):
+    symbol: str
+    selected: bool
+    dates: list[str]
+    values: list[float]
+
+class Correlations_Response(TickerBaseResponse):
+    windows: list[str]
+    peers: list[Correlation_PeerRow]
+    curves: list[Correlation_Curve]
+    missing: list[str]
+
 # ---- Pantalla 1: Extensión a la media ----
 
 class MeanReversion_ExtensionToMean_Row(BaseModel):
@@ -294,3 +329,15 @@ class BacktestResponse(BaseModel):
     benchmark_equity: list[CurvePoint]
     benchmark_metrics: BacktestMetrics
 
+
+
+# ---- Mantenimiento: borrar los datos descargados y las caches ----
+
+class DataCacheFailure(BaseModel):
+    file: str
+    error: str
+
+class DataCacheClear_Response(BaseModel):
+    deleted_raw: int
+    deleted_processed: int
+    failed: list[DataCacheFailure]

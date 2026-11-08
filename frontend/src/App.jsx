@@ -12,9 +12,11 @@ import TrendDuration from "./features/analytics/pages/TrendDuration";
 import Rsi from "./features/analytics/pages/Rsi";
 import QuarterPatterns from "./features/analytics/pages/QuarterPatterns";
 import ZScoreReturns from "./features/analytics/pages/ZScoreReturns";
+import Correlations from "./features/analytics/pages/Correlations";
 import MLTraining from "./features/ml/pages/MLTraining";
 import MLPrediction from "./features/ml/pages/MLPrediction";
 import Backtesting from "./features/backtesting/pages/Backtesting";
+import Screener from "./features/screener/pages/Screener";
 
 const DEFAULT_TICKER = "sp500";
 
@@ -41,8 +43,10 @@ function App() {
             <Route path="rsi" element={<Rsi />} />
             <Route path="quarter-patterns" element={<QuarterPatterns />} />
             <Route path="z-score-returns" element={<ZScoreReturns />} />
+            <Route path="correlations" element={<Correlations />} />
           </Route>
-
+          <Route path="screener" element={<Screener />} />
+          <Route path="backtesting" element={<Backtesting />} />
           <Route
             path="ml"
             element={<Navigate to={`/ml/${DEFAULT_TICKER}/training`} replace />}
@@ -52,8 +56,6 @@ function App() {
             <Route path="training" element={<MLTraining />} />
             <Route path="prediction" element={<MLPrediction />} />
           </Route>
-
-          <Route path="backtesting" element={<Backtesting />} />
         </Route>
       </Routes>
     </BrowserRouter>

@@ -19,4 +19,6 @@ universes:
 
   mysymbols: ["SP500","ASTS","RKLB","IREN","MU","NVDA","GOOGL","AAPL","AMZN","AMD","MSFT","NFLX","META","ORCL","INTC","TSLA","BABA","BIDU","JD","GOLD","SILVER","OIL","BTC","ETH"]
 
+  mag7: ["AAPL","MSFT","GOOGL","AMZN","NVDA","META","TSLA"]
+
   sp: ["SP500"]

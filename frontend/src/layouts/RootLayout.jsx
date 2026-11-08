@@ -1,9 +1,11 @@
 import { NavLink, Outlet } from "react-router-dom";
 import avatar from "../assets/avatar.png";
+import RefreshDataButton from "../components/RefreshDataButton";
 
 const SECTIONS = [
   { to: "/analytics", label: "Statistics" },
   { to: "/ml", label: "Machine Learning" },
+  { to: "/screener", label: "Screener" },
   { to: "/backtesting", label: "Backtesting" },
 ];
 
@@ -39,6 +41,7 @@ function RootLayout() {
           </nav>
 
           <div className="flex items-center gap-3">
+            <RefreshDataButton />
             <span className="text-sm font-medium text-foreground">Julian Moffatt</span>
             <img
               src={avatar}
