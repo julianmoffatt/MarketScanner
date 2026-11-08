@@ -12,6 +12,14 @@ export function getHome(ticker) {
   return fetchAnalytics(`${ticker}/home_statistics`);
 }
 
+export function getCorrelations(ticker) {
+  return fetchAnalytics(`${ticker}/correlations`);
+}
+
+export function getFundamentals(ticker) {
+  return fetchAnalytics(`${ticker}/fundamentals`);
+}
+
 export function getMeanReversion_Distance_LT(ticker) {
   return fetchAnalytics(`${ticker}/mean_reversion_extension_to_mean_lt`);
 }
@@ -40,8 +48,12 @@ export function getDeviationEmaTrend(ticker) {
   return fetchAnalytics(`${ticker}/deviation_ema_trend`);
 }
 
-export function getStrikesCandles(ticker) {
+export function getStrikesCandles_HT(ticker) {
   return fetchAnalytics(`${ticker}/strikes_candles`);
+}
+
+export function getStrikesCandles_LT(ticker) {
+  return fetchAnalytics(`${ticker}/strikes_candles_lt`);
 }
 
 export function getTrendDuration(ticker) {

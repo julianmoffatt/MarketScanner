@@ -16,11 +16,16 @@ def _count_streaks(types):
     return counts, types[-1], streak_len
 
 
-def compute(timeframes):
-    timeframe_labels = ["daily", "weekly", "monthly"]
+HIGHER_TIMEFRAME_LABELS = ["daily", "weekly", "monthly"]
+LOWER_TIMEFRAME_LABELS = ["1h", "4h"]
+
+
+def _build_panels(timeframes, labels):
+    # zip se detiene en el mas corto: si llegan mas dataframes que etiquetas
+    # (ej. quarterly/yearly tras monthly), los sobrantes se ignoran.
     panels = []
 
-    for i, df in enumerate(timeframes[:3]):
+    for label, df in zip(labels, timeframes):
         types = df["type"].tolist()
         counts, current_color, current_length = _count_streaks(types)
 
@@ -33,10 +38,18 @@ def compute(timeframes):
             rows.sort(key=lambda r: r["length"])
 
             panels.append({
-                "timeframe": timeframe_labels[i],
+                "timeframe": label,
                 "type": color,
                 "current_length": current_length,
                 "is_current": color == current_color,
                 "rows": rows,
             })
     return panels
+
+
+def compute(timeframes):
+    return _build_panels(timeframes, HIGHER_TIMEFRAME_LABELS)
+
+
+def compute_lowertimeframe(timeframes):
+    return _build_panels(timeframes, LOWER_TIMEFRAME_LABELS)

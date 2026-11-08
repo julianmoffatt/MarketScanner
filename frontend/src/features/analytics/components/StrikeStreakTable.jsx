@@ -15,22 +15,27 @@ function StrikeStreakTable({ panel }) {
 
   return (
     <div
-      className="rounded-lg border bg-card p-3"
+      className="h-full rounded-lg border bg-card p-3"
       style={panel.is_current ? { borderColor: "var(--gold)", borderWidth: 2 } : { borderColor: "var(--border)" }}
     >
-      <div className="mb-2 flex items-center gap-2 text-sm">
-        <span className="h-2.5 w-2.5 shrink-0 rounded-full" style={{ background: color }} />
-        <span className="font-medium text-foreground">{panel.type} streaks</span>
-        {panel.is_current && (
-          <span className="ml-auto text-xs font-semibold text-gold">Current: {panel.current_length}</span>
-        )}
+      {/* Titulo y "Current" en lineas separadas, y la segunda siempre reserva su
+          altura: en columnas estrechas ya no se parte el titulo y todas las
+          tarjetas arrancan la tabla a la misma altura. */}
+      <div className="mb-2 text-sm">
+        <div className="flex items-center gap-2 whitespace-nowrap">
+          <span className="h-2.5 w-2.5 shrink-0 rounded-full" style={{ background: color }} />
+          <span className="font-medium text-foreground">{panel.type} streaks</span>
+        </div>
+        <div className="h-4 pl-[18px] text-xs font-semibold text-gold">
+          {panel.is_current ? `Current: ${panel.current_length}` : ""}
+        </div>
       </div>
 
-      <table className="w-full text-xs">
+      <table className="w-full table-fixed text-xs tabular-nums">
         <thead>
           <tr className="text-left text-muted-foreground">
-            <th className="pb-1 font-medium">Length</th>
-            <th className="pb-1 font-medium">Count</th>
+            <th className="w-[36%] pb-1 font-medium">Length</th>
+            <th className="w-[34%] pb-1 font-medium">Count</th>
             <th className="pb-1 font-medium">%</th>
           </tr>
         </thead>
