@@ -38,6 +38,10 @@ def get_strikes_candles(ticker: str) -> dict:
     df = pipeline.processedTimeframes(ticker, 0)
     return strikes_candles.compute(df)
 
+def get_strikes_candles_lt(ticker: str) -> dict:
+    df = pipeline.processedTimeframes(ticker, 1)
+    return strikes_candles.compute_lowertimeframe(df)
+
 def get_trend_duration(ticker: str) -> dict:
     df = pipeline.processedTimeframes(ticker, 0)
     return strikes_trend.compute(df)

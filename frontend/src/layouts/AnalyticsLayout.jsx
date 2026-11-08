@@ -12,7 +12,8 @@ const TABS = [
   { path: "deviation-candles", label: "MAE (Candles)" },
   { path: "deviation-ema-trend", label: "MAE (EMA Trend)" },
   { path: "quarter-patterns", label: "Quarter Patterns" },
-  { path: "z-score-returns", label: "Z Score Returns" }
+  { path: "z-score-returns", label: "Z Score Returns" },
+  { path: "correlations", label: "Correlations" }
 ];
 
 function AnalyticsLayout() {

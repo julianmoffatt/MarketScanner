@@ -10,6 +10,14 @@ def compute(timeframes):
             (((df["Open"] - df["Low"]) / df["Open"]) * 100)*-1,
             ((df["High"] - df["Open"]) / df["Open"]) * 100,
         )
+        # Vela en curso (la ultima): su desviacion por abajo y por arriba de la apertura,
+        # sea cual sea su color. Cada panel marca la que le corresponde: el verde la de
+        # abajo (en negativo) y el rojo la de arriba.
+        last = df.iloc[-1]
+        current_by_type = {
+            "Green": -(last["Open"] - last["Low"]) / last["Open"] * 100,
+            "Red": (last["High"] - last["Open"]) / last["Open"] * 100,
+        }
         df_green = df[df["type"] == "Green"].copy()
         df_red = df[df["type"] == "Red"].copy()
 
@@ -30,7 +38,7 @@ def compute(timeframes):
                 p05 = subset["deviation"].quantile(0.05)
                 p95 = subset["deviation"].quantile(0.95)
 
-            current_value = subset["deviation"].iloc[-1]
+            current_value = current_by_type[candle_type]
             panels.append({
                 "timeframe": timeframe[i],
                 "type": candle_type,

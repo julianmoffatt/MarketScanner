@@ -149,8 +149,12 @@ def clean_ohlcv(df, drop_illiquid_onset=True, verbose=False):
             report_rows.append({"date": ts, "action": f"invalid_{col.lower()}_interpolated"})
         df.loc[mask, col] = np.nan
 
+    # limit_area="inside": solo se interpola ENTRE dos valores validos. Sin esto,
+    # pandas rellena un NaN del borde final copiando el ultimo valor valido
+    # (ej. una vela diaria que Yahoo entrega sin Close se quedaba con el cierre
+    # del dia anterior, y salia una vela imposible con Close > High).
     cols_to_fill = price_cols + ["Volume"]
-    df[cols_to_fill] = df[cols_to_fill].astype(float).interpolate(method="linear", limit=2)
+    df[cols_to_fill] = df[cols_to_fill].astype(float).interpolate(method="linear", limit=2, limit_area="inside")
 
     # lo que siga en NaN (borde de la serie sin vecino valido, o un hueco
     # mayor al limite) no se puede arreglar sin inventar un dato -- ahi
@@ -166,7 +170,7 @@ def clean_ohlcv(df, drop_illiquid_onset=True, verbose=False):
         report_rows.append({"date": ts, "action": "spike_interpolated", "return": round(row["return"], 4)})
     if len(spikes):
         df.loc[spikes.index, price_cols] = np.nan
-        df[price_cols] = df[price_cols].interpolate(method="linear", limit=2)
+        df[price_cols] = df[price_cols].interpolate(method="linear", limit=2, limit_area="inside")
 
     # -- periodo inicial de baja liquidez -- unico paso que recorta calendario,
     #    y solo desde el principio de la serie hacia adelante -------------

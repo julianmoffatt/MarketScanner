@@ -4,7 +4,7 @@ Capa delgada: solo traduce HTTP <-> Python, no calcula nada aqui.
 """
 from fastapi import APIRouter, HTTPException
 from ..schemas import *
-from ...services import analytics_service
+from ...services import analytics_service, correlations_service, fundamentals_service
 
 router = APIRouter(prefix="/analytics", tags=["analytics"])
 
@@ -12,6 +12,16 @@ router = APIRouter(prefix="/analytics", tags=["analytics"])
 def get_home(ticker: str):
     stats = analytics_service.get_home_statistics(ticker)
     return {"ticker": ticker, **stats}
+
+
+@router.get("/{ticker}/fundamentals", response_model=Fundamentals_Response)
+def get_fundamentals(ticker: str):
+    return {"ticker": ticker, **fundamentals_service.get_fundamentals(ticker)}
+
+
+@router.get("/{ticker}/correlations", response_model=Correlations_Response)
+def get_correlations(ticker: str):
+    return {"ticker": ticker, **correlations_service.get_correlations(ticker)}
 
 
 @router.get("/{ticker}/mean_reversion_extension_to_mean_lt", response_model=MeanReversion_ExtensionToMean_Response)
@@ -59,6 +69,12 @@ def get_deviation_ema_trend(ticker: str):
 @router.get("/{ticker}/strikes_candles", response_model=StrikeStreaks_Response)
 def get_strikes_candles(ticker: str):
     panels = analytics_service.get_strikes_candles(ticker)
+    return {"ticker": ticker, "panels": panels}
+
+
+@router.get("/{ticker}/strikes_candles_lt", response_model=StrikeStreaks_Response)
+def get_strikes_candles_lt(ticker: str):
+    panels = analytics_service.get_strikes_candles_lt(ticker)
     return {"ticker": ticker, "panels": panels}
 
 
