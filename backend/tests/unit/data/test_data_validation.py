@@ -544,3 +544,36 @@ def test_validation_report_to_df_is_indexed_and_sorted_by_date():
 
     assert list(result["action"]) == ["a", "b"]
     assert result.index.name == "date"
+
+
+def test_clean_ohlcv_does_not_copy_the_previous_close_into_an_incomplete_last_row(ohlcv):
+    # Caso real: Yahoo entrega la ultima vela diaria con Close = NaN. Antes se
+    # rellenaba con el cierre del dia anterior (vela imposible con Close > High).
+    df = ohlcv.copy()
+    df.iloc[-1, df.columns.get_loc("Close")] = float("nan")
+
+    result = clean_ohlcv(df)
+
+    assert result.index[-1] == ohlcv.index[-2]
+    assert len(result) == len(ohlcv) - 1
+    assert actions(result) == ["unfixable_row_drop"]
+
+
+def test_clean_ohlcv_never_extrapolates_past_the_last_valid_value(ohlcv):
+    df = ohlcv.copy()
+    df.iloc[-2:, df.columns.get_loc("Close")] = float("nan")
+
+    result = clean_ohlcv(df)
+
+    assert len(result) == len(ohlcv) - 2
+    assert result["Close"].notna().all()
+
+
+def test_clean_ohlcv_still_interpolates_a_gap_between_two_valid_values(ohlcv):
+    df = ohlcv.copy()
+    df.iloc[10, df.columns.get_loc("Close")] = float("nan")
+
+    result = clean_ohlcv(df)
+
+    assert len(result) == len(ohlcv)
+    assert result["Close"].iloc[10] == pytest.approx((ohlcv["Close"].iloc[9] + ohlcv["Close"].iloc[11]) / 2)
